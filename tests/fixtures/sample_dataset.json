@@ -1,0 +1,47 @@
+{
+  "name": "test_dataset",
+  "version": "1.0.0",
+  "test_cases": [
+    {
+      "id": "test_001",
+      "question": "What is Python?",
+      "answer": "Python is a high-level programming language.",
+      "contexts": [
+        "Python is a programming language",
+        "Python was created by Guido van Rossum"
+      ],
+      "ground_truth": "Python is a high-level interpreted programming language."
+    },
+    {
+      "id": "test_002",
+      "question": "What is machine learning?",
+      "answer": "Machine learning is a subset of AI.",
+      "contexts": [
+        "ML is part of AI",
+        "ML uses algorithms to learn from data"
+      ],
+      "ground_truth": "Machine learning is a method of data analysis that automates analytical model building."
+    },
+    {
+      "id": "test_003",
+      "question": "What is RAG?",
+      "answer": "RAG stands for Retrieval-Augmented Generation.",
+      "contexts": [
+        "RAG combines retrieval and generation",
+        "RAG improves LLM responses"
+      ],
+      "ground_truth": "RAG is a technique that enhances LLM outputs with retrieved information."
+    },
+    {
+      "id": "test_004",
+      "question": "What is TDD?",
+      "answer": "TDD means Test-Driven Development.",
+      "contexts": [
+        "Test-Driven Development",
+        "Write tests first",
+        "Red-Green-Refactor cycle"
+      ],
+      "ground_truth": "TDD is a software development approach where tests are written before code."
+    }
+  ]
+}

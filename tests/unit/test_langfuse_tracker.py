@@ -1,0 +1,371 @@
+"""Tests for Langfuse tracker adapter."""
+
+from datetime import datetime
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+from evalvault.adapters.outbound.tracker.langfuse_adapter import LangfuseAdapter
+from evalvault.domain.entities import EvaluationRun, MetricScore, TestCaseResult
+
+
+@pytest.fixture
+def mock_langfuse():
+    """Mock Langfuse client."""
+    with patch("evalvault.adapters.outbound.tracker.langfuse_adapter.Langfuse") as mock:
+        yield mock
+
+
+@pytest.fixture
+def langfuse_adapter(mock_langfuse):
+    """Create LangfuseAdapter with mocked Langfuse client."""
+    mock_client = MagicMock()
+    mock_langfuse.return_value = mock_client
+
+    adapter = LangfuseAdapter(
+        public_key="pk-test-key",
+        secret_key="sk-test-key",
+        host="https://cloud.langfuse.com",
+    )
+    adapter._client = mock_client
+    return adapter
+
+
+class TestLangfuseAdapterInitialization:
+    """Test Langfuse adapter initialization."""
+
+    def test_initialization_with_credentials(self, mock_langfuse):
+        """Test adapter initialization with credentials."""
+        adapter = LangfuseAdapter(
+            public_key="pk-test",
+            secret_key="sk-test",
+            host="https://cloud.langfuse.com",
+        )
+
+        mock_langfuse.assert_called_once_with(
+            public_key="pk-test",
+            secret_key="sk-test",
+            host="https://cloud.langfuse.com",
+        )
+        assert adapter._client is not None
+
+    def test_initialization_default_host(self, mock_langfuse):
+        """Test adapter initialization with default host."""
+        adapter = LangfuseAdapter(
+            public_key="pk-test",
+            secret_key="sk-test",
+        )
+
+        mock_langfuse.assert_called_once_with(
+            public_key="pk-test",
+            secret_key="sk-test",
+            host="https://cloud.langfuse.com",
+        )
+
+
+class TestStartTrace:
+    """Test start_trace method."""
+
+    def test_start_trace_without_metadata(self, langfuse_adapter):
+        """Test starting a trace without metadata."""
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-123"
+        langfuse_adapter._client.trace.return_value = mock_trace
+
+        trace_id = langfuse_adapter.start_trace(name="test-trace")
+
+        assert trace_id == "trace-123"
+        langfuse_adapter._client.trace.assert_called_once_with(
+            name="test-trace",
+            metadata=None,
+        )
+        assert "trace-123" in langfuse_adapter._traces
+
+    def test_start_trace_with_metadata(self, langfuse_adapter):
+        """Test starting a trace with metadata."""
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-456"
+        langfuse_adapter._client.trace.return_value = mock_trace
+
+        metadata = {"dataset": "test-dataset", "version": "1.0.0"}
+        trace_id = langfuse_adapter.start_trace(name="evaluation-run", metadata=metadata)
+
+        assert trace_id == "trace-456"
+        langfuse_adapter._client.trace.assert_called_once_with(
+            name="evaluation-run",
+            metadata=metadata,
+        )
+
+
+class TestAddSpan:
+    """Test add_span method."""
+
+    def test_add_span_without_data(self, langfuse_adapter):
+        """Test adding a span without input/output data."""
+        mock_trace = MagicMock()
+        langfuse_adapter._traces["trace-123"] = mock_trace
+
+        langfuse_adapter.add_span(trace_id="trace-123", name="test-span")
+
+        mock_trace.span.assert_called_once_with(
+            name="test-span",
+            input=None,
+            output=None,
+        )
+
+    def test_add_span_with_input_output(self, langfuse_adapter):
+        """Test adding a span with input and output data."""
+        mock_trace = MagicMock()
+        langfuse_adapter._traces["trace-123"] = mock_trace
+
+        input_data = {"question": "What is Python?"}
+        output_data = {"answer": "A programming language"}
+
+        langfuse_adapter.add_span(
+            trace_id="trace-123",
+            name="llm-call",
+            input_data=input_data,
+            output_data=output_data,
+        )
+
+        mock_trace.span.assert_called_once_with(
+            name="llm-call",
+            input=input_data,
+            output=output_data,
+        )
+
+    def test_add_span_trace_not_found(self, langfuse_adapter):
+        """Test adding a span to non-existent trace raises error."""
+        with pytest.raises(ValueError, match="Trace not found"):
+            langfuse_adapter.add_span(
+                trace_id="non-existent",
+                name="span",
+            )
+
+
+class TestLogScore:
+    """Test log_score method."""
+
+    def test_log_score_without_comment(self, langfuse_adapter):
+        """Test logging a score without comment."""
+        mock_trace = MagicMock()
+        langfuse_adapter._traces["trace-123"] = mock_trace
+
+        langfuse_adapter.log_score(
+            trace_id="trace-123",
+            name="faithfulness",
+            value=0.85,
+        )
+
+        mock_trace.score.assert_called_once_with(
+            name="faithfulness",
+            value=0.85,
+            comment=None,
+        )
+
+    def test_log_score_with_comment(self, langfuse_adapter):
+        """Test logging a score with comment."""
+        mock_trace = MagicMock()
+        langfuse_adapter._traces["trace-123"] = mock_trace
+
+        langfuse_adapter.log_score(
+            trace_id="trace-123",
+            name="answer_relevancy",
+            value=0.92,
+            comment="RAGAS evaluation result",
+        )
+
+        mock_trace.score.assert_called_once_with(
+            name="answer_relevancy",
+            value=0.92,
+            comment="RAGAS evaluation result",
+        )
+
+    def test_log_score_trace_not_found(self, langfuse_adapter):
+        """Test logging score to non-existent trace raises error."""
+        with pytest.raises(ValueError, match="Trace not found"):
+            langfuse_adapter.log_score(
+                trace_id="non-existent",
+                name="score",
+                value=0.5,
+            )
+
+
+class TestSaveArtifact:
+    """Test save_artifact method."""
+
+    def test_save_artifact_json(self, langfuse_adapter):
+        """Test saving JSON artifact."""
+        mock_trace = MagicMock()
+        langfuse_adapter._traces["trace-123"] = mock_trace
+
+        data = {"key": "value", "number": 123}
+        langfuse_adapter.save_artifact(
+            trace_id="trace-123",
+            name="test-artifact",
+            data=data,
+            artifact_type="json",
+        )
+
+        mock_trace.update.assert_called_once()
+        call_kwargs = mock_trace.update.call_args[1]
+        assert call_kwargs["metadata"]["artifact_test-artifact"] == data
+        assert call_kwargs["metadata"]["artifact_test-artifact_type"] == "json"
+
+    def test_save_artifact_text(self, langfuse_adapter):
+        """Test saving text artifact."""
+        mock_trace = MagicMock()
+        langfuse_adapter._traces["trace-123"] = mock_trace
+
+        data = "This is a text artifact"
+        langfuse_adapter.save_artifact(
+            trace_id="trace-123",
+            name="log-output",
+            data=data,
+            artifact_type="text",
+        )
+
+        mock_trace.update.assert_called_once()
+        call_kwargs = mock_trace.update.call_args[1]
+        assert call_kwargs["metadata"]["artifact_log-output"] == data
+        assert call_kwargs["metadata"]["artifact_log-output_type"] == "text"
+
+    def test_save_artifact_trace_not_found(self, langfuse_adapter):
+        """Test saving artifact to non-existent trace raises error."""
+        with pytest.raises(ValueError, match="Trace not found"):
+            langfuse_adapter.save_artifact(
+                trace_id="non-existent",
+                name="artifact",
+                data={},
+            )
+
+
+class TestEndTrace:
+    """Test end_trace method."""
+
+    def test_end_trace(self, langfuse_adapter):
+        """Test ending a trace."""
+        mock_trace = MagicMock()
+        langfuse_adapter._traces["trace-123"] = mock_trace
+
+        langfuse_adapter.end_trace(trace_id="trace-123")
+
+        langfuse_adapter._client.flush.assert_called_once()
+        assert "trace-123" not in langfuse_adapter._traces
+
+    def test_end_trace_not_found(self, langfuse_adapter):
+        """Test ending a non-existent trace raises error."""
+        with pytest.raises(ValueError, match="Trace not found"):
+            langfuse_adapter.end_trace(trace_id="non-existent")
+
+
+class TestLogEvaluationRun:
+    """Test log_evaluation_run method."""
+
+    def test_log_evaluation_run_complete(self, langfuse_adapter):
+        """Test logging a complete evaluation run."""
+        # Create evaluation run with results
+        run = EvaluationRun(
+            run_id="run-123",
+            dataset_name="test-dataset",
+            dataset_version="1.0.0",
+            model_name="gpt-4o",
+            started_at=datetime(2024, 1, 1, 12, 0, 0),
+            finished_at=datetime(2024, 1, 1, 12, 5, 0),
+            metrics_evaluated=["faithfulness", "answer_relevancy"],
+            thresholds={"faithfulness": 0.7, "answer_relevancy": 0.7},
+            results=[
+                TestCaseResult(
+                    test_case_id="tc-001",
+                    metrics=[
+                        MetricScore(name="faithfulness", score=0.85, threshold=0.7),
+                        MetricScore(name="answer_relevancy", score=0.92, threshold=0.7),
+                    ],
+                    tokens_used=1500,
+                    latency_ms=250,
+                ),
+                TestCaseResult(
+                    test_case_id="tc-002",
+                    metrics=[
+                        MetricScore(name="faithfulness", score=0.78, threshold=0.7),
+                        MetricScore(name="answer_relevancy", score=0.88, threshold=0.7),
+                    ],
+                    tokens_used=1200,
+                    latency_ms=200,
+                ),
+            ],
+            total_tokens=2700,
+        )
+
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-eval-123"
+        langfuse_adapter._client.trace.return_value = mock_trace
+
+        trace_id = langfuse_adapter.log_evaluation_run(run)
+
+        # Verify trace was created with correct metadata
+        assert trace_id == "trace-eval-123"
+        langfuse_adapter._client.trace.assert_called_once()
+        call_kwargs = langfuse_adapter._client.trace.call_args[1]
+        assert call_kwargs["name"] == "evaluation-run-run-123"
+        assert call_kwargs["metadata"]["dataset_name"] == "test-dataset"
+        assert call_kwargs["metadata"]["model_name"] == "gpt-4o"
+        assert call_kwargs["metadata"]["total_test_cases"] == 2
+        assert call_kwargs["metadata"]["pass_rate"] == 1.0
+
+        # Verify scores were logged
+        assert mock_trace.score.call_count >= 2  # At least avg scores
+
+        # Verify flush was called
+        langfuse_adapter._client.flush.assert_called_once()
+
+    def test_log_evaluation_run_with_failures(self, langfuse_adapter):
+        """Test logging evaluation run with some failed test cases."""
+        run = EvaluationRun(
+            run_id="run-456",
+            dataset_name="test-dataset",
+            dataset_version="1.0.0",
+            model_name="gpt-4o",
+            metrics_evaluated=["faithfulness"],
+            results=[
+                TestCaseResult(
+                    test_case_id="tc-001",
+                    metrics=[MetricScore(name="faithfulness", score=0.85, threshold=0.7)],
+                ),
+                TestCaseResult(
+                    test_case_id="tc-002",
+                    metrics=[MetricScore(name="faithfulness", score=0.5, threshold=0.7)],
+                ),
+            ],
+        )
+
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-eval-456"
+        langfuse_adapter._client.trace.return_value = mock_trace
+
+        trace_id = langfuse_adapter.log_evaluation_run(run)
+
+        assert trace_id == "trace-eval-456"
+        call_kwargs = langfuse_adapter._client.trace.call_args[1]
+        assert call_kwargs["metadata"]["passed_test_cases"] == 1
+        assert call_kwargs["metadata"]["pass_rate"] == 0.5
+
+    def test_log_evaluation_run_empty_results(self, langfuse_adapter):
+        """Test logging evaluation run with no results."""
+        run = EvaluationRun(
+            run_id="run-empty",
+            dataset_name="test-dataset",
+            dataset_version="1.0.0",
+            model_name="gpt-4o",
+        )
+
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-empty"
+        langfuse_adapter._client.trace.return_value = mock_trace
+
+        trace_id = langfuse_adapter.log_evaluation_run(run)
+
+        assert trace_id == "trace-empty"
+        call_kwargs = langfuse_adapter._client.trace.call_args[1]
+        assert call_kwargs["metadata"]["total_test_cases"] == 0
+        assert call_kwargs["metadata"]["pass_rate"] == 0.0

@@ -1,0 +1,59 @@
+[project]
+name = "evalvault"
+version = "0.1.0"
+description = "RAG evaluation system using Ragas with Langfuse tracing"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "ragas",
+    "langfuse",
+    "openai",
+    "langchain-openai",
+    "pydantic",
+    "pydantic-settings",
+    "typer",
+    "rich",
+    "pandas",
+    "openpyxl",
+    "xlrd",      # For reading .xls files (Excel 97-2003)
+    "chardet",   # For automatic encoding detection in CSV files
+    "structlog",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-xdist",
+    "pytest-rerunfailures",
+    "ruff",
+]
+
+[project.scripts]
+evalvault = "evalvault.adapters.inbound.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evalvault"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "B008",  # Do not perform function call in argument defaults (Typer pattern)
+    "B904",  # Within except clause, raise with from (Typer Exit pattern)
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
