@@ -42,6 +42,12 @@ class TestCaseResult:
     cost_usd: float | None = None  # 비용 (계산 가능한 경우)
     trace_id: str | None = None  # Langfuse trace ID
 
+    # 원본 테스트 케이스 데이터 (Langfuse 로깅용)
+    question: str | None = None
+    answer: str | None = None
+    contexts: list[str] | None = None
+    ground_truth: str | None = None
+
     @property
     def all_passed(self) -> bool:
         """모든 메트릭이 threshold를 통과했는지."""

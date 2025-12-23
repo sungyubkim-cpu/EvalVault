@@ -304,31 +304,38 @@ class TestLogEvaluationRun:
             total_tokens=2700,
         )
 
-        mock_root_span = MagicMock()
-        mock_root_span.trace_id = "trace-eval-123"
-        mock_child_span = MagicMock()
-        mock_root_span.start_span.return_value = mock_child_span
-        langfuse_adapter._client.start_span.return_value = mock_root_span
+        # Mock trace() method for log_evaluation_run
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-eval-123"
+        langfuse_adapter._client.trace.return_value = mock_trace
 
         trace_id = langfuse_adapter.log_evaluation_run(run)
 
-        # Verify trace was created
+        # Verify trace was created with input/output
         assert trace_id == "trace-eval-123"
-        langfuse_adapter._client.start_span.assert_called_once()
+        langfuse_adapter._client.trace.assert_called_once()
+        trace_call = langfuse_adapter._client.trace.call_args
 
-        # Verify trace-level metadata was set via update_trace
-        mock_root_span.update_trace.assert_called()
-        update_trace_calls = mock_root_span.update_trace.call_args_list
-        # First call should set name and metadata
-        first_call = update_trace_calls[0]
-        assert first_call[1]["name"] == "evaluation-run-run-123"
-        assert first_call[1]["metadata"]["dataset_name"] == "test-dataset"
-        assert first_call[1]["metadata"]["model_name"] == "gpt-4o"
-        assert first_call[1]["metadata"]["total_test_cases"] == 2
-        assert first_call[1]["metadata"]["pass_rate"] == 1.0
+        # Verify trace input contains dataset and config
+        assert "input" in trace_call[1]
+        assert trace_call[1]["input"]["dataset"]["name"] == "test-dataset"
+        assert trace_call[1]["input"]["evaluation_config"]["model"] == "gpt-4o"
 
-        # Verify scores were logged
-        assert mock_root_span.score_trace.call_count >= 2  # At least avg scores
+        # Verify trace output contains summary
+        assert "output" in trace_call[1]
+        assert trace_call[1]["output"]["summary"]["total_test_cases"] == 2
+        assert trace_call[1]["output"]["summary"]["pass_rate"] == 1.0
+
+        # Verify metadata
+        assert trace_call[1]["metadata"]["dataset_name"] == "test-dataset"
+        assert trace_call[1]["metadata"]["model_name"] == "gpt-4o"
+        assert trace_call[1]["metadata"]["total_test_cases"] == 2
+
+        # Verify spans were created for each test case
+        assert mock_trace.span.call_count == 2
+
+        # Verify scores were logged (score_trace is called due to MagicMock having all attrs)
+        assert mock_trace.score_trace.call_count >= 2  # At least avg scores
 
         # Verify flush was called
         langfuse_adapter._client.flush.assert_called_once()
@@ -353,20 +360,21 @@ class TestLogEvaluationRun:
             ],
         )
 
-        mock_root_span = MagicMock()
-        mock_root_span.trace_id = "trace-eval-456"
-        mock_child_span = MagicMock()
-        mock_root_span.start_span.return_value = mock_child_span
-        langfuse_adapter._client.start_span.return_value = mock_root_span
+        # Mock trace() method
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-eval-456"
+        langfuse_adapter._client.trace.return_value = mock_trace
 
         trace_id = langfuse_adapter.log_evaluation_run(run)
 
         assert trace_id == "trace-eval-456"
-        # Verify metadata via update_trace
-        update_trace_calls = mock_root_span.update_trace.call_args_list
-        first_call = update_trace_calls[0]
-        assert first_call[1]["metadata"]["passed_test_cases"] == 1
-        assert first_call[1]["metadata"]["pass_rate"] == 0.5
+        # Verify metadata
+        trace_call = langfuse_adapter._client.trace.call_args
+        assert trace_call[1]["metadata"]["passed_test_cases"] == 1
+        assert trace_call[1]["metadata"]["pass_rate"] == 0.5
+        # Verify output shows failure
+        assert trace_call[1]["output"]["summary"]["passed"] == 1
+        assert trace_call[1]["output"]["summary"]["failed"] == 1
 
     def test_log_evaluation_run_empty_results(self, langfuse_adapter):
         """Test logging evaluation run with no results."""
@@ -377,15 +385,17 @@ class TestLogEvaluationRun:
             model_name="gpt-4o",
         )
 
-        mock_root_span = MagicMock()
-        mock_root_span.trace_id = "trace-empty"
-        langfuse_adapter._client.start_span.return_value = mock_root_span
+        # Mock trace() method
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-empty"
+        langfuse_adapter._client.trace.return_value = mock_trace
 
         trace_id = langfuse_adapter.log_evaluation_run(run)
 
         assert trace_id == "trace-empty"
-        # Verify metadata via update_trace
-        update_trace_calls = mock_root_span.update_trace.call_args_list
-        first_call = update_trace_calls[0]
-        assert first_call[1]["metadata"]["total_test_cases"] == 0
-        assert first_call[1]["metadata"]["pass_rate"] == 0.0
+        # Verify metadata
+        trace_call = langfuse_adapter._client.trace.call_args
+        assert trace_call[1]["metadata"]["total_test_cases"] == 0
+        assert trace_call[1]["metadata"]["pass_rate"] == 0.0
+        # Verify no spans created
+        assert mock_trace.span.call_count == 0

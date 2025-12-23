@@ -55,13 +55,11 @@ class TestLangfuseFlowWithMock:
         self, mock_langfuse_cls, sample_evaluation_run
     ):
         """log_evaluation_run이 trace를 생성하는지 테스트."""
-        # Setup mock for Langfuse 2.x API
+        # Setup mock for Langfuse trace() API
         mock_langfuse = MagicMock()
-        mock_root_span = MagicMock()
-        mock_root_span.trace_id = "trace-123"
-        mock_child_span = MagicMock()
-        mock_root_span.start_span.return_value = mock_child_span
-        mock_langfuse.start_span.return_value = mock_root_span
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-123"
+        mock_langfuse.trace.return_value = mock_trace
         mock_langfuse_cls.return_value = mock_langfuse
 
         # Create adapter and log run
@@ -72,9 +70,12 @@ class TestLangfuseFlowWithMock:
         )
         trace_id = adapter.log_evaluation_run(sample_evaluation_run)
 
-        # Verify trace was created
+        # Verify trace was created with input/output
         assert trace_id == "trace-123"
-        mock_langfuse.start_span.assert_called_once()
+        mock_langfuse.trace.assert_called_once()
+        trace_call = mock_langfuse.trace.call_args
+        assert "input" in trace_call[1]
+        assert "output" in trace_call[1]
 
     @patch("evalvault.adapters.outbound.tracker.langfuse_adapter.Langfuse")
     def test_log_evaluation_run_logs_scores(
@@ -82,11 +83,9 @@ class TestLangfuseFlowWithMock:
     ):
         """log_evaluation_run이 점수를 로깅하는지 테스트."""
         mock_langfuse = MagicMock()
-        mock_root_span = MagicMock()
-        mock_root_span.trace_id = "trace-123"
-        mock_child_span = MagicMock()
-        mock_root_span.start_span.return_value = mock_child_span
-        mock_langfuse.start_span.return_value = mock_root_span
+        mock_trace = MagicMock()
+        mock_trace.id = "trace-123"
+        mock_langfuse.trace.return_value = mock_trace
         mock_langfuse_cls.return_value = mock_langfuse
 
         adapter = LangfuseAdapter(
@@ -96,8 +95,8 @@ class TestLangfuseFlowWithMock:
         )
         adapter.log_evaluation_run(sample_evaluation_run)
 
-        # Verify scores were logged (via score_trace)
-        assert mock_root_span.score_trace.called
+        # Verify scores were logged (via score_trace due to MagicMock)
+        assert mock_trace.score_trace.called
 
     @patch("evalvault.adapters.outbound.tracker.langfuse_adapter.Langfuse")
     def test_complete_tracking_flow(self, mock_langfuse_cls):

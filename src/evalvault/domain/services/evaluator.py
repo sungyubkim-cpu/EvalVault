@@ -109,6 +109,11 @@ class RagasEvaluator:
                 test_case_id=test_case.id,
                 metrics=metric_scores,
                 tokens_used=eval_result.tokens_used,
+                # 원본 데이터 포함 (Langfuse 로깅용)
+                question=test_case.question,
+                answer=test_case.answer,
+                contexts=test_case.contexts,
+                ground_truth=test_case.ground_truth,
             )
             run.results.append(test_case_result)
             total_tokens += eval_result.tokens_used
