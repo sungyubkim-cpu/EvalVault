@@ -68,11 +68,27 @@ class RagasEvaluator:
             dataset: 평가할 데이터셋
             metrics: 평가할 메트릭 리스트 (예: ['faithfulness', 'answer_relevancy'])
             llm: LLM 어댑터 (Ragas가 사용)
-            thresholds: 메트릭별 임계값 (기본값: 0.7)
+            thresholds: 메트릭별 임계값 (CLI에서 전달, 없으면 dataset.thresholds 사용)
 
         Returns:
             평가 결과가 담긴 EvaluationRun
+
+        Note:
+            임계값 우선순위: CLI 옵션 > 데이터셋 내장 > 기본값(0.7)
         """
+        # Resolve thresholds: CLI > dataset > default(0.7)
+        resolved_thresholds = {}
+        for metric in metrics:
+            if thresholds and metric in thresholds:
+                # CLI에서 전달된 값 우선
+                resolved_thresholds[metric] = thresholds[metric]
+            elif dataset.thresholds and metric in dataset.thresholds:
+                # 데이터셋에 정의된 값
+                resolved_thresholds[metric] = dataset.thresholds[metric]
+            else:
+                # 기본값
+                resolved_thresholds[metric] = 0.7
+
         # Initialize evaluation run
         run = EvaluationRun(
             dataset_name=dataset.name,
@@ -80,7 +96,7 @@ class RagasEvaluator:
             model_name=llm.get_model_name(),
             started_at=datetime.now(),
             metrics_evaluated=metrics,
-            thresholds=thresholds or {},
+            thresholds=resolved_thresholds,
         )
 
         # Handle empty dataset
@@ -88,9 +104,8 @@ class RagasEvaluator:
             run.finished_at = datetime.now()
             return run
 
-        # Set default thresholds
-        if thresholds is None:
-            thresholds = dict.fromkeys(metrics, 0.7)
+        # Use resolved thresholds
+        thresholds = resolved_thresholds
 
         # Evaluate with Ragas
         eval_results_by_test_case = await self._evaluate_with_ragas(

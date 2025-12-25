@@ -44,14 +44,6 @@ class Settings(BaseSettings):
         description="Anthropic Claude model to use for evaluation",
     )
 
-    # Ragas Evaluation Thresholds (SLA)
-    threshold_faithfulness: float = Field(default=0.7, ge=0.0, le=1.0)
-    threshold_answer_relevancy: float = Field(default=0.7, ge=0.0, le=1.0)
-    threshold_context_precision: float = Field(default=0.7, ge=0.0, le=1.0)
-    threshold_context_recall: float = Field(default=0.7, ge=0.0, le=1.0)
-    threshold_factual_correctness: float = Field(default=0.7, ge=0.0, le=1.0)
-    threshold_semantic_similarity: float = Field(default=0.7, ge=0.0, le=1.0)
-
     # Langfuse Configuration (optional)
     langfuse_public_key: str | None = Field(default=None, description="Langfuse public key")
     langfuse_secret_key: str | None = Field(default=None, description="Langfuse secret key")
@@ -70,34 +62,6 @@ class Settings(BaseSettings):
     postgres_connection_string: str | None = Field(
         default=None, description="PostgreSQL connection string (overrides other postgres settings)"
     )
-
-    def get_threshold(self, metric_name: str) -> float:
-        """Get threshold for a specific metric.
-
-        Args:
-            metric_name: Metric name (e.g., 'faithfulness', 'answer_relevancy')
-
-        Returns:
-            Threshold value (0.0 ~ 1.0)
-        """
-        threshold_attr = f"threshold_{metric_name}"
-        return getattr(self, threshold_attr, 0.7)
-
-    def get_all_thresholds(self) -> dict[str, float]:
-        """Get all metric thresholds as a dictionary.
-
-        Returns:
-            Dictionary of metric names to threshold values
-        """
-        return {
-            "faithfulness": self.threshold_faithfulness,
-            "answer_relevancy": self.threshold_answer_relevancy,
-            "context_precision": self.threshold_context_precision,
-            "context_recall": self.threshold_context_recall,
-            "factual_correctness": self.threshold_factual_correctness,
-            "semantic_similarity": self.threshold_semantic_similarity,
-        }
-
 
 # Global settings instance (lazy initialization)
 _settings: Settings | None = None

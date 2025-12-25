@@ -2,6 +2,14 @@
   "name": "e2e-insurance-qa-korean",
   "version": "1.0.0",
   "description": "Korean insurance QA dataset for E2E testing",
+  "thresholds": {
+    "faithfulness": 0.7,
+    "answer_relevancy": 0.7,
+    "context_precision": 0.6,
+    "context_recall": 0.6,
+    "factual_correctness": 0.7,
+    "semantic_similarity": 0.7
+  },
   "test_cases": [
     {
       "id": "kr-001",

@@ -123,13 +123,9 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_HOST=http://your-langfuse-host:port
-
-# Metric Thresholds (SLA)
-THRESHOLD_FAITHFULNESS=0.7
-THRESHOLD_ANSWER_RELEVANCY=0.7
-THRESHOLD_CONTEXT_PRECISION=0.7
-THRESHOLD_CONTEXT_RECALL=0.7
 ```
+
+**Note:** 메트릭 임계값(thresholds)은 환경변수가 아닌 **데이터셋 JSON 파일**에 정의합니다.
 
 ## Data Format
 
@@ -138,6 +134,12 @@ THRESHOLD_CONTEXT_RECALL=0.7
 {
   "name": "insurance-qa-dataset",
   "version": "1.0.0",
+  "thresholds": {
+    "faithfulness": 0.8,
+    "answer_relevancy": 0.7,
+    "context_precision": 0.7,
+    "context_recall": 0.7
+  },
   "test_cases": [
     {
       "id": "tc-001",
@@ -149,6 +151,8 @@ THRESHOLD_CONTEXT_RECALL=0.7
   ]
 }
 ```
+
+**thresholds**: 메트릭별 통과 기준 (0.0~1.0). 미지정 시 기본값 0.7 적용.
 
 ### Input Dataset (CSV)
 ```csv

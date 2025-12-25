@@ -138,9 +138,15 @@ def run(
     # Initialize components
     llm = OpenAIAdapter(settings)
     evaluator = RagasEvaluator()
-    thresholds = settings.get_all_thresholds()
 
-    # Run evaluation
+    # Show thresholds from dataset if present
+    if ds.thresholds:
+        console.print("[dim]Thresholds from dataset:[/dim]")
+        for metric, threshold in ds.thresholds.items():
+            console.print(f"  [dim]{metric}: {threshold}[/dim]")
+        console.print()
+
+    # Run evaluation (thresholds resolved from dataset or default 0.7)
     with console.status("[bold green]Running evaluation..."):
         try:
             result = asyncio.run(
@@ -148,7 +154,7 @@ def run(
                     dataset=ds,
                     metrics=metric_list,
                     llm=llm,
-                    thresholds=thresholds,
+                    thresholds=None,  # Let evaluator use dataset.thresholds
                 )
             )
         except Exception as e:
@@ -346,23 +352,11 @@ def config():
 
     console.print(table)
 
-    # Thresholds
+    # Thresholds info
     console.print("\n[bold]Metric Thresholds[/bold]\n")
-
-    threshold_table = Table(show_header=True, header_style="bold cyan")
-    threshold_table.add_column("Metric", style="bold")
-    threshold_table.add_column("Threshold", justify="right")
-
-    thresholds = settings.get_all_thresholds()
-    for metric, threshold in thresholds.items():
-        threshold_table.add_row(metric, f"{threshold:.2f}")
-
-    console.print(threshold_table)
-    console.print(
-        "\n[dim]Set thresholds via environment variables:[/dim]"
-    )
-    console.print("[dim]  THRESHOLD_FAITHFULNESS=0.8[/dim]")
-    console.print("[dim]  THRESHOLD_ANSWER_RELEVANCY=0.7[/dim]\n")
+    console.print("[dim]Thresholds are defined in the dataset JSON file:[/dim]")
+    console.print('[dim]  "thresholds": {"faithfulness": 0.8, "answer_relevancy": 0.7}[/dim]')
+    console.print("[dim]Default threshold: 0.7 (when not specified in dataset)[/dim]\n")
 
 
 @app.command()

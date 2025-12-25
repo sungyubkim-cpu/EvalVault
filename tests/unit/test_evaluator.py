@@ -277,7 +277,8 @@ class TestRagasEvaluator:
                 thresholds=thresholds,
             )
 
-            assert result.thresholds == thresholds
+            # Only thresholds for evaluated metrics are stored
+            assert result.thresholds == {"faithfulness": 0.7}
 
     @pytest.mark.asyncio
     async def test_evaluate_with_empty_dataset(self, mock_llm, thresholds):

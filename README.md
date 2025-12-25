@@ -76,6 +76,10 @@ evalvault export <run_id> -o result.json
 {
   "name": "my-dataset",
   "version": "1.0.0",
+  "thresholds": {
+    "faithfulness": 0.8,
+    "answer_relevancy": 0.7
+  },
   "test_cases": [
     {
       "id": "tc-001",
@@ -87,6 +91,8 @@ evalvault export <run_id> -o result.json
   ]
 }
 ```
+
+> **thresholds**: 메트릭별 통과 기준 (0.0~1.0). 미지정 시 기본값 0.7
 
 ### CSV
 

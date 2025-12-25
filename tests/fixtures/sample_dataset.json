@@ -1,6 +1,10 @@
 {
   "name": "test_dataset",
   "version": "1.0.0",
+  "thresholds": {
+    "faithfulness": 0.7,
+    "answer_relevancy": 0.7
+  },
   "test_cases": [
     {
       "id": "test_001",

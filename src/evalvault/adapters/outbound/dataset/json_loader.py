@@ -58,6 +58,10 @@ class JSONDatasetLoader(BaseDatasetLoader):
         {
             "name": "dataset_name",
             "version": "1.0.0",
+            "thresholds": {
+                "faithfulness": 0.8,
+                "answer_relevancy": 0.7
+            },
             "test_cases": [
                 {
                     "id": "test_001",
@@ -116,6 +120,20 @@ class JSONDatasetLoader(BaseDatasetLoader):
             )
             test_cases.append(test_case)
 
+        # Parse thresholds (validate values are between 0.0 and 1.0)
+        thresholds = {}
+        raw_thresholds = data.get("thresholds", {})
+        for metric_name, threshold_value in raw_thresholds.items():
+            if not isinstance(threshold_value, (int, float)):
+                raise ValueError(
+                    f"Invalid threshold value for '{metric_name}': must be a number"
+                )
+            if not 0.0 <= threshold_value <= 1.0:
+                raise ValueError(
+                    f"Invalid threshold value for '{metric_name}': must be between 0.0 and 1.0"
+                )
+            thresholds[metric_name] = float(threshold_value)
+
         # Create dataset
         dataset = Dataset(
             name=data.get("name", self._get_default_name(path)),
@@ -123,6 +141,7 @@ class JSONDatasetLoader(BaseDatasetLoader):
             test_cases=test_cases,
             metadata=data.get("metadata", {}),
             source_file=str(path),
+            thresholds=thresholds,
         )
 
         return dataset

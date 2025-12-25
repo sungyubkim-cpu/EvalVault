@@ -36,6 +36,19 @@ class Dataset:
     test_cases: list[TestCase]
     metadata: dict[str, Any] = field(default_factory=dict)
     source_file: str | None = None  # CSV/Excel 원본 파일 경로
+    thresholds: dict[str, float] = field(default_factory=dict)  # 메트릭별 임계값
+
+    def get_threshold(self, metric_name: str, default: float = 0.7) -> float:
+        """특정 메트릭의 임계값 반환.
+
+        Args:
+            metric_name: 메트릭 이름 (예: 'faithfulness')
+            default: 임계값이 없을 때 기본값
+
+        Returns:
+            임계값 (0.0 ~ 1.0)
+        """
+        return self.thresholds.get(metric_name, default)
 
     def __len__(self) -> int:
         return len(self.test_cases)
