@@ -2,7 +2,7 @@
 
 모델명 참조:
   - 개발 LLM: gemma3:1b
-  - 운영 LLM: gpt-oss:20b
+  - 운영 LLM: gpt-oss-safeguard:20b
   - 개발 임베딩: qwen3-embedding:0.6b
   - 운영 임베딩: qwen3-embedding:8b
 """
@@ -31,10 +31,10 @@ class TestOllamaAdapter:
 
     @pytest.fixture
     def prod_settings(self) -> Settings:
-        """운영 환경 설정 (gpt-oss:20b)."""
+        """운영 환경 설정 (gpt-oss-safeguard:20b)."""
         settings = Settings()
         settings.llm_provider = "ollama"
-        settings.ollama_model = "gpt-oss:20b"
+        settings.ollama_model = "gpt-oss-safeguard:20b"
         settings.ollama_embedding_model = "qwen3-embedding:8b"
         settings.ollama_base_url = "http://localhost:11434"
         settings.ollama_timeout = 180
@@ -62,7 +62,7 @@ class TestOllamaAdapter:
         """운영 환경 어댑터 초기화 테스트."""
         adapter = OllamaAdapter(prod_settings)
 
-        assert adapter.get_model_name() == "ollama/gpt-oss:20b"
+        assert adapter.get_model_name() == "ollama/gpt-oss-safeguard:20b"
         assert adapter.get_embedding_model_name() == "qwen3-embedding:8b"
         assert adapter.get_think_level() == "medium"
 

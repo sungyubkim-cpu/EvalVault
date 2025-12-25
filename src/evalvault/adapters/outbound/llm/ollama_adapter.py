@@ -4,7 +4,7 @@ Ollama의 OpenAI 호환 API를 사용하여 Ragas와 통합합니다.
 기존 OpenAIAdapter 코드를 최대한 재사용합니다.
 
 지원 모델:
-  - 평가 LLM: gemma3:1b (개발), gpt-oss:20b (운영)
+  - 평가 LLM: gemma3:1b (개발), gpt-oss-safeguard:20b (운영)
   - 임베딩: qwen3-embedding:0.6b (개발), qwen3-embedding:8b (운영)
 """
 

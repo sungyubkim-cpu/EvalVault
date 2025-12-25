@@ -2,7 +2,7 @@
 
 프로필 기반 모델 설정 테스트:
 - dev: gemma3:1b (Ollama)
-- prod: gpt-oss:20b (Ollama)
+- prod: gpt-oss-safeguard:20b (Ollama)
 - openai: gpt-5-nano (OpenAI)
 """
 
@@ -97,7 +97,7 @@ class TestApplyProfileIntegration:
         settings = apply_profile(settings, "prod")
 
         assert settings.llm_provider == "ollama"
-        assert settings.ollama_model == "gpt-oss:20b"
+        assert settings.ollama_model == "gpt-oss-safeguard:20b"
         assert settings.ollama_think_level == "medium"
         assert settings.ollama_embedding_model == "qwen3-embedding:8b"
 

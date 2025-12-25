@@ -2,7 +2,7 @@
 
 모델명 참조:
   - 개발 LLM: gemma3:1b
-  - 운영 LLM: gpt-oss:20b
+  - 운영 LLM: gpt-oss-safeguard:20b
   - 개발 임베딩: qwen3-embedding:0.6b
   - 운영 임베딩: qwen3-embedding:8b
   - OpenAI LLM: gpt-5-nano
@@ -53,7 +53,7 @@ class TestModelConfig:
                     "description": "운영용",
                     "llm": {
                         "provider": "ollama",
-                        "model": "gpt-oss:20b",
+                        "model": "gpt-oss-safeguard:20b",
                         "options": {"think_level": "medium"},
                     },
                     "embedding": {
@@ -108,7 +108,7 @@ class TestModelConfig:
         profile = config.get_profile("prod")
 
         assert profile.llm.provider == "ollama"
-        assert profile.llm.model == "gpt-oss:20b"
+        assert profile.llm.model == "gpt-oss-safeguard:20b"
         assert profile.llm.options == {"think_level": "medium"}
         assert profile.embedding.model == "qwen3-embedding:8b"
 
@@ -152,11 +152,11 @@ class TestLLMConfig:
         """옵션이 있는 Ollama LLM 설정 테스트."""
         config = LLMConfig(
             provider="ollama",
-            model="gpt-oss:20b",
+            model="gpt-oss-safeguard:20b",
             options={"think_level": "medium"},
         )
 
-        assert config.model == "gpt-oss:20b"
+        assert config.model == "gpt-oss-safeguard:20b"
         assert config.options["think_level"] == "medium"
 
     def test_openai_llm_config(self):

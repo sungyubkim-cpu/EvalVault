@@ -135,7 +135,7 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 | 프로필 | LLM | Embedding | 용도 |
 |--------|-----|-----------|------|
 | `dev` | gemma3:1b (Ollama) | qwen3-embedding:0.6b | 개발/테스트 |
-| `prod` | gpt-oss:20b (Ollama) | qwen3-embedding:8b | 운영 환경 |
+| `prod` | gpt-oss-safeguard:20b (Ollama) | qwen3-embedding:8b | 운영 환경 |
 | `openai` | gpt-5-nano | text-embedding-3-small | 외부망 |
 
 ## 문서

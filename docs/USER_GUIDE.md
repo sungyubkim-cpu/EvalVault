@@ -200,7 +200,7 @@ EvalVault는 **프로필 기반 모델 설정**을 지원합니다. 개발/운�
 | 프로필 | LLM | Embedding | 용도 |
 |--------|-----|-----------|------|
 | `dev` | gemma3:1b (Ollama) | qwen3-embedding:0.6b | 개발/테스트 |
-| `prod` | gpt-oss:20b (Ollama) | qwen3-embedding:8b | 운영 환경 |
+| `prod` | gpt-oss-safeguard:20b (Ollama) | qwen3-embedding:8b | 운영 환경 |
 | `openai` | gpt-5-nano (OpenAI) | text-embedding-3-small | 외부망 |
 
 ### 프로필 사용 방법
@@ -261,7 +261,7 @@ profiles:
     description: "운영용 고성능 모델"
     llm:
       provider: ollama
-      model: gpt-oss:20b
+      model: gpt-oss-safeguard:20b
       options:
         think_level: medium
     embedding:
