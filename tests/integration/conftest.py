@@ -2,6 +2,7 @@
 
 import os
 import pytest
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -23,14 +24,33 @@ def get_test_model():
     return model
 
 
+def _add_timestamp_to_path(path_str: str) -> str:
+    """Add timestamp suffix to a file path.
+
+    Example: reports/e2e_report.html -> reports/e2e_report_20251224_112345.html
+    """
+    path = Path(path_str)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    new_name = f"{path.stem}_{timestamp}{path.suffix}"
+    return str(path.parent / new_name)
+
+
 def pytest_configure(config):
-    """Configure custom pytest markers."""
+    """Configure custom pytest markers and add timestamps to report filenames."""
     config.addinivalue_line(
         "markers", "requires_openai: marks tests that require OpenAI API key"
     )
     config.addinivalue_line(
         "markers", "requires_langfuse: marks tests that require Langfuse credentials"
     )
+
+    # Add timestamp suffix to HTML report filename
+    if hasattr(config.option, 'htmlpath') and config.option.htmlpath:
+        config.option.htmlpath = _add_timestamp_to_path(config.option.htmlpath)
+
+    # Add timestamp suffix to JUnit XML report filename
+    if hasattr(config.option, 'xmlpath') and config.option.xmlpath:
+        config.option.xmlpath = _add_timestamp_to_path(config.option.xmlpath)
 
 
 @pytest.fixture
