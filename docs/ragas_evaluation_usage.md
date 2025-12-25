@@ -14,7 +14,7 @@ OPENAI_API_KEY=sk-your-api-key-here
 
 # Optional
 OPENAI_BASE_URL=https://api.openai.com/v1  # Custom endpoint
-OPENAI_MODEL=gpt-4o-mini                    # Default model
+OPENAI_MODEL=gpt-5-nano                     # Default model
 
 # Metric Thresholds (0.0 - 1.0)
 THRESHOLD_FAITHFULNESS=0.7
@@ -244,7 +244,7 @@ tracker.end_trace(trace_id)
 
 4. **Version your datasets**: Use dataset versioning to track improvements over time
 
-5. **Monitor costs**: Ragas evaluation uses LLM calls, which can add up. Use smaller models (gpt-4o-mini) for cost efficiency.
+5. **Monitor costs**: Ragas evaluation uses LLM calls, which can add up. Use smaller models (gpt-5-nano) for cost efficiency.
 
 ## Troubleshooting
 
@@ -259,6 +259,6 @@ pip install -e ".[dev]"
 
 ### Slow Evaluation
 Ragas makes multiple LLM calls per test case. Consider:
-- Using faster models (gpt-4o-mini instead of gpt-4o)
+- Using faster models (gpt-5-nano for cost efficiency)
 - Evaluating fewer metrics
 - Reducing dataset size for quick iterations

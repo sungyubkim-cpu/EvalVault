@@ -371,7 +371,7 @@ class TrackerPort(Protocol):
 
 **산출물:**
 ```bash
-ragas-eval run --dataset data/test.json --model gpt-4o-mini
+ragas-eval run --dataset data/test.json --model gpt-5-nano
 ragas-eval history --limit 10
 ```
 
@@ -413,7 +413,7 @@ ragas-eval history --limit 10
 | **메타데이터** | run_id | 고유 식별자 (UUID) |
 | | dataset_name | 데이터셋 이름 |
 | | dataset_version | 데이터셋 버전 |
-| | model_name | 사용한 모델 (gpt-4o, gpt-4o-mini 등) |
+| | model_name | 사용한 모델 (gpt-4o, gpt-5-nano 등) |
 | | started_at | 시작 시간 |
 | | finished_at | 종료 시간 |
 | **집계 점수** | avg_faithfulness | Faithfulness 평균 |
@@ -496,7 +496,7 @@ dataset = EvaluationDataset.from_list([
 # 평가 실행
 ragas-eval run \
   --dataset data/my-dataset.json \
-  --model gpt-4o-mini \
+  --model gpt-5-nano \
   --metrics faithfulness,answer_relevancy
 
 # 특정 임계값으로 실행

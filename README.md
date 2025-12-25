@@ -100,7 +100,7 @@ tc-001,"보험금은?","1억원입니다.","[""사망보험금은 1억원""]","1
 ```bash
 # .env 파일
 OPENAI_API_KEY=sk-...                    # 필수
-OPENAI_MODEL=gpt-4o-mini                 # 선택 (기본: gpt-4o-mini)
+OPENAI_MODEL=gpt-5-nano                  # 선택 (기본: gpt-5-nano)
 
 # Langfuse 연동 (선택)
 LANGFUSE_PUBLIC_KEY=pk-lf-...

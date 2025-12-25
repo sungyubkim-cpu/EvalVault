@@ -150,7 +150,7 @@ evalvault metrics
 ```bash
 # OpenAI API (필수)
 OPENAI_API_KEY=sk-your-openai-api-key
-OPENAI_MODEL=gpt-4o-mini          # 또는 gpt-4, gpt-3.5-turbo
+OPENAI_MODEL=gpt-5-nano           # 기본 모델
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
@@ -182,7 +182,7 @@ evalvault config
 ```
 EvalVault Configuration
 ========================
-OpenAI Model: gpt-4o-mini
+OpenAI Model: gpt-5-nano
 Embedding Model: text-embedding-3-small
 Langfuse: Configured ✓
 Thresholds:
@@ -235,7 +235,7 @@ evalvault history --limit 10
 evalvault history --dataset insurance-qa
 
 # 특정 모델 필터링
-evalvault history --model gpt-4o-mini
+evalvault history --model gpt-5-nano
 ```
 
 ### 결과 비교 (`compare`)
@@ -605,7 +605,7 @@ evalvault run data.json --metrics faithfulness --verbose
 | 변수 | 필수 | 기본값 | 설명 |
 |------|------|--------|------|
 | `OPENAI_API_KEY` | ✅ | - | OpenAI API 키 |
-| `OPENAI_MODEL` | ❌ | gpt-4o-mini | 평가에 사용할 모델 |
+| `OPENAI_MODEL` | ❌ | gpt-5-nano | 평가에 사용할 모델 |
 | `OPENAI_EMBEDDING_MODEL` | ❌ | text-embedding-3-small | 임베딩 모델 |
 | `OPENAI_BASE_URL` | ❌ | - | 커스텀 API 엔드포인트 |
 | `LANGFUSE_PUBLIC_KEY` | ❌ | - | Langfuse 공개 키 |

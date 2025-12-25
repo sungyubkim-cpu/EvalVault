@@ -136,7 +136,7 @@ class OpenAIAdapter(LLMPort):
         """Get the model name being used.
 
         Returns:
-            Model identifier (e.g., 'gpt-4o-mini')
+            Model identifier (e.g., 'gpt-5-nano')
         """
         return self._model_name
 
