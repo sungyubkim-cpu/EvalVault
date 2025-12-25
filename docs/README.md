@@ -161,15 +161,9 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_HOST=https://cloud.langfuse.com  # 또는 self-hosted URL
-
-# 메트릭 임계값 (SLA 기준)
-THRESHOLD_FAITHFULNESS=0.7
-THRESHOLD_ANSWER_RELEVANCY=0.7
-THRESHOLD_CONTEXT_PRECISION=0.7
-THRESHOLD_CONTEXT_RECALL=0.7
-THRESHOLD_FACTUAL_CORRECTNESS=0.7
-THRESHOLD_SEMANTIC_SIMILARITY=0.7
 ```
+
+> **Note**: 메트릭 임계값(thresholds)은 환경변수가 아닌 **데이터셋 JSON 파일**에 정의합니다. [데이터셋 준비](#데이터셋-준비) 섹션을 참조하세요.
 
 ### 설정 확인
 
@@ -185,10 +179,6 @@ EvalVault Configuration
 OpenAI Model: gpt-5-nano
 Embedding Model: text-embedding-3-small
 Langfuse: Configured ✓
-Thresholds:
-  - faithfulness: 0.7
-  - answer_relevancy: 0.7
-  ...
 ```
 
 ---
@@ -389,6 +379,12 @@ EvalVault는 [Ragas](https://docs.ragas.io/) 프레임워크 기반의 6가지 �
 {
   "name": "insurance-qa-dataset",
   "version": "1.0.0",
+  "thresholds": {
+    "faithfulness": 0.8,
+    "answer_relevancy": 0.7,
+    "context_precision": 0.7,
+    "context_recall": 0.7
+  },
   "test_cases": [
     {
       "id": "tc-001",
@@ -403,6 +399,9 @@ EvalVault는 [Ragas](https://docs.ragas.io/) 프레임워크 기반의 6가지 �
   ]
 }
 ```
+
+> **thresholds**: 메트릭별 통과 기준 (0.0~1.0). 미지정 시 기본값 0.7 적용.
+> 데이터셋에 포함하여 버전 관리가 가능하고, 팀 간 일관된 SLA 적용이 가능합니다.
 
 ### CSV 형식
 
@@ -611,7 +610,8 @@ evalvault run data.json --metrics faithfulness --verbose
 | `LANGFUSE_PUBLIC_KEY` | ❌ | - | Langfuse 공개 키 |
 | `LANGFUSE_SECRET_KEY` | ❌ | - | Langfuse 비밀 키 |
 | `LANGFUSE_HOST` | ❌ | cloud.langfuse.com | Langfuse 호스트 |
-| `THRESHOLD_*` | ❌ | 0.7 | 각 메트릭 임계값 |
+
+> **Note**: 메트릭 임계값은 데이터셋 JSON의 `thresholds` 필드에 정의합니다.
 
 ### B. 프로젝트 구조
 
