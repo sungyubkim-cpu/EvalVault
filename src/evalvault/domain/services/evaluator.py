@@ -200,17 +200,52 @@ class RagasEvaluator:
             test_case_started_at = datetime.now()
 
             for metric in ragas_metrics:
-                # Build kwargs based on metric type
-                ascore_kwargs = {
-                    "user_input": sample.user_input,
-                    "response": sample.response,
-                }
-                # Add contexts for metrics that require it
-                if metric.name in ("faithfulness", "context_precision", "context_recall"):
-                    ascore_kwargs["retrieved_contexts"] = sample.retrieved_contexts
-                # Add reference for metrics that require it
-                if metric.name in ("context_recall", "factual_correctness"):
-                    ascore_kwargs["reference"] = sample.reference
+                # Build kwargs based on metric type (each metric has different signature)
+                # Faithfulness: user_input, response, retrieved_contexts
+                # AnswerRelevancy: user_input, response
+                # ContextPrecision: user_input, reference, retrieved_contexts
+                # ContextRecall: user_input, retrieved_contexts, reference
+                # FactualCorrectness: response, reference
+                # SemanticSimilarity: reference, response
+                if metric.name == "faithfulness":
+                    ascore_kwargs = {
+                        "user_input": sample.user_input,
+                        "response": sample.response,
+                        "retrieved_contexts": sample.retrieved_contexts,
+                    }
+                elif metric.name == "answer_relevancy":
+                    ascore_kwargs = {
+                        "user_input": sample.user_input,
+                        "response": sample.response,
+                    }
+                elif metric.name == "context_precision":
+                    ascore_kwargs = {
+                        "user_input": sample.user_input,
+                        "reference": sample.reference,
+                        "retrieved_contexts": sample.retrieved_contexts,
+                    }
+                elif metric.name == "context_recall":
+                    ascore_kwargs = {
+                        "user_input": sample.user_input,
+                        "retrieved_contexts": sample.retrieved_contexts,
+                        "reference": sample.reference,
+                    }
+                elif metric.name == "factual_correctness":
+                    ascore_kwargs = {
+                        "response": sample.response,
+                        "reference": sample.reference,
+                    }
+                elif metric.name == "semantic_similarity":
+                    ascore_kwargs = {
+                        "reference": sample.reference,
+                        "response": sample.response,
+                    }
+                else:
+                    # Fallback for unknown metrics
+                    ascore_kwargs = {
+                        "user_input": sample.user_input,
+                        "response": sample.response,
+                    }
 
                 result = await metric.ascore(**ascore_kwargs)
                 # Handle both MetricResult and float returns
