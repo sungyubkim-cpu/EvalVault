@@ -10,10 +10,10 @@ from rich.panel import Panel
 from rich.table import Table
 
 from evalvault.adapters.outbound.dataset import get_loader
-from evalvault.adapters.outbound.llm.openai_adapter import OpenAIAdapter
+from evalvault.adapters.outbound.llm import get_llm_adapter
 from evalvault.adapters.outbound.storage.sqlite_adapter import SQLiteStorageAdapter
 from evalvault.adapters.outbound.tracker.langfuse_adapter import LangfuseAdapter
-from evalvault.config.settings import Settings
+from evalvault.config.settings import Settings, apply_profile
 from evalvault.domain.services.evaluator import RagasEvaluator
 from evalvault.domain.services.experiment_manager import ExperimentManager
 from evalvault.domain.services.testset_generator import (
@@ -73,10 +73,16 @@ def run(
         "-m",
         help="Comma-separated list of metrics to evaluate.",
     ),
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="Model profile (dev, prod, openai). Overrides .env setting.",
+    ),
     model: str | None = typer.Option(
         None,
         "--model",
-        help="Model to use for evaluation (overrides settings).",
+        help="Model to use for evaluation (overrides profile).",
     ),
     output: Path | None = typer.Option(
         None,
@@ -111,19 +117,39 @@ def run(
 
     # Load settings
     settings = Settings()
-    if model:
-        settings.openai_model = model
 
-    # Check for API key
-    if not settings.openai_api_key:
+    # Apply profile (CLI > .env > default)
+    profile_name = profile or settings.evalvault_profile
+    if profile_name:
+        settings = apply_profile(settings, profile_name)
+
+    # Override model if specified
+    if model:
+        if settings.llm_provider == "ollama":
+            settings.ollama_model = model
+        else:
+            settings.openai_model = model
+
+    # Validate provider-specific requirements
+    if settings.llm_provider == "openai" and not settings.openai_api_key:
         console.print("[red]Error:[/red] OPENAI_API_KEY not set.")
-        console.print("Set it in your environment or .env file.")
+        console.print("Set it in your .env file or use --profile dev for Ollama.")
         raise typer.Exit(1)
+
+    # Get model name for display
+    if settings.llm_provider == "ollama":
+        display_model = f"ollama/{settings.ollama_model}"
+    else:
+        display_model = settings.openai_model
 
     console.print("\n[bold]EvalVault[/bold] - RAG Evaluation")
     console.print(f"Dataset: [cyan]{dataset}[/cyan]")
     console.print(f"Metrics: [cyan]{', '.join(metric_list)}[/cyan]")
-    console.print(f"Model: [cyan]{settings.openai_model}[/cyan]\n")
+    console.print(f"Provider: [cyan]{settings.llm_provider}[/cyan]")
+    console.print(f"Model: [cyan]{display_model}[/cyan]")
+    if profile_name:
+        console.print(f"Profile: [cyan]{profile_name}[/cyan]")
+    console.print()
 
     # Load dataset
     with console.status("[bold green]Loading dataset..."):
@@ -136,7 +162,7 @@ def run(
             raise typer.Exit(1)
 
     # Initialize components
-    llm = OpenAIAdapter(settings)
+    llm = get_llm_adapter(settings)
     evaluator = RagasEvaluator()
 
     # Show thresholds from dataset if present
@@ -329,34 +355,101 @@ def config():
     """Show current configuration."""
     settings = Settings()
 
+    # Apply profile if set
+    profile_name = settings.evalvault_profile
+    if profile_name:
+        settings = apply_profile(settings, profile_name)
+
     console.print("\n[bold]Current Configuration[/bold]\n")
 
-    table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("Setting", style="bold")
-    table.add_column("Value")
+    # Profile section
+    console.print("[bold cyan]Profile[/bold cyan]")
+    table_profile = Table(show_header=False, box=None, padding=(0, 2))
+    table_profile.add_column("Setting", style="bold")
+    table_profile.add_column("Value")
 
-    # OpenAI settings
-    api_key_status = "[green]Set[/green]" if settings.openai_api_key else "[red]Not set[/red]"
-    table.add_row("OpenAI API Key", api_key_status)
-    table.add_row("OpenAI Model", settings.openai_model)
-    table.add_row("OpenAI Base URL", settings.openai_base_url or "[dim]Default[/dim]")
+    table_profile.add_row(
+        "Active Profile",
+        f"[cyan]{profile_name}[/cyan]" if profile_name else "[dim]None (using defaults)[/dim]",
+    )
+    table_profile.add_row("LLM Provider", settings.llm_provider)
+
+    console.print(table_profile)
+    console.print()
+
+    # Provider-specific settings
+    console.print("[bold cyan]LLM Settings[/bold cyan]")
+    table_llm = Table(show_header=False, box=None, padding=(0, 2))
+    table_llm.add_column("Setting", style="bold")
+    table_llm.add_column("Value")
+
+    if settings.llm_provider == "ollama":
+        table_llm.add_row("Ollama Model", settings.ollama_model)
+        table_llm.add_row("Ollama Embedding", settings.ollama_embedding_model)
+        table_llm.add_row("Ollama URL", settings.ollama_base_url)
+        table_llm.add_row("Ollama Timeout", f"{settings.ollama_timeout}s")
+        if settings.ollama_think_level:
+            table_llm.add_row("Think Level", settings.ollama_think_level)
+    else:
+        api_key_status = "[green]Set[/green]" if settings.openai_api_key else "[red]Not set[/red]"
+        table_llm.add_row("OpenAI API Key", api_key_status)
+        table_llm.add_row("OpenAI Model", settings.openai_model)
+        table_llm.add_row("OpenAI Embedding", settings.openai_embedding_model)
+        table_llm.add_row(
+            "OpenAI Base URL",
+            settings.openai_base_url or "[dim]Default[/dim]",
+        )
+
+    console.print(table_llm)
+    console.print()
 
     # Langfuse settings
+    console.print("[bold cyan]Tracking[/bold cyan]")
+    table_tracking = Table(show_header=False, box=None, padding=(0, 2))
+    table_tracking.add_column("Setting", style="bold")
+    table_tracking.add_column("Value")
+
     langfuse_status = (
         "[green]Configured[/green]"
         if settings.langfuse_public_key and settings.langfuse_secret_key
         else "[yellow]Not configured[/yellow]"
     )
-    table.add_row("Langfuse", langfuse_status)
-    table.add_row("Langfuse Host", settings.langfuse_host)
+    table_tracking.add_row("Langfuse", langfuse_status)
+    table_tracking.add_row("Langfuse Host", settings.langfuse_host)
 
-    console.print(table)
+    console.print(table_tracking)
+    console.print()
 
-    # Thresholds info
-    console.print("\n[bold]Metric Thresholds[/bold]\n")
-    console.print("[dim]Thresholds are defined in the dataset JSON file:[/dim]")
-    console.print('[dim]  "thresholds": {"faithfulness": 0.8, "answer_relevancy": 0.7}[/dim]')
-    console.print("[dim]Default threshold: 0.7 (when not specified in dataset)[/dim]\n")
+    # Available profiles
+    console.print("[bold cyan]Available Profiles[/bold cyan]")
+    try:
+        from evalvault.config.model_config import get_model_config
+
+        model_config = get_model_config()
+        table_profiles = Table(show_header=True, header_style="bold")
+        table_profiles.add_column("Profile")
+        table_profiles.add_column("LLM")
+        table_profiles.add_column("Embedding")
+        table_profiles.add_column("Description")
+
+        for name, prof in model_config.profiles.items():
+            is_active = name == profile_name
+            prefix = "[cyan]* " if is_active else "  "
+            suffix = "[/cyan]" if is_active else ""
+            table_profiles.add_row(
+                f"{prefix}{name}{suffix}",
+                prof.llm.model,
+                prof.embedding.model,
+                prof.description,
+            )
+
+        console.print(table_profiles)
+    except FileNotFoundError:
+        console.print("[yellow]  config/models.yaml not found[/yellow]")
+
+    console.print()
+    console.print("[dim]Tip: Use --profile to override, e.g.:[/dim]")
+    console.print("[dim]  evalvault run data.json --profile prod --metrics faithfulness[/dim]\n")
 
 
 @app.command()

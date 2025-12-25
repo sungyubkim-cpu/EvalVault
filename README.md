@@ -13,6 +13,7 @@
 - **6가지 평가 메트릭**: Ragas v1.0 기반 표준화된 RAG 평가
 - **다중 데이터 포맷**: JSON, CSV, Excel 지원
 - **자동 결과 저장**: SQLite (로컬) + Langfuse (클라우드/셀프호스팅)
+- **폐쇄망 지원**: Ollama 기반 로컬 LLM 평가 (프로필 기반 설정)
 - **CLI 인터페이스**: 간편한 명령줄 도구
 - **Hexagonal Architecture**: 확장 가능한 포트/어댑터 구조
 
@@ -51,6 +52,12 @@ evalvault history
 ```bash
 # 평가 실행
 evalvault run data.json --metrics faithfulness,answer_relevancy
+
+# 프로필 지정 (Ollama dev 환경)
+evalvault run data.json --profile dev --metrics faithfulness
+
+# 프로필 지정 (OpenAI)
+evalvault run data.json -p openai --metrics faithfulness
 
 # 모든 메트릭으로 평가
 evalvault run data.json --metrics faithfulness,answer_relevancy,context_precision,context_recall,factual_correctness,semantic_similarity
@@ -105,14 +112,31 @@ tc-001,"보험금은?","1억원입니다.","[""사망보험금은 1억원""]","1
 
 ```bash
 # .env 파일
-OPENAI_API_KEY=sk-...                    # 필수
+
+# 프로필 설정 (dev, prod, openai)
+EVALVAULT_PROFILE=openai                 # 선택 (프로필 사용 시)
+
+# OpenAI 설정 (외부망)
+OPENAI_API_KEY=sk-...                    # openai 프로필 시 필수
 OPENAI_MODEL=gpt-5-nano                  # 선택 (기본: gpt-5-nano)
+
+# Ollama 설정 (폐쇄망)
+OLLAMA_BASE_URL=http://localhost:11434   # 선택 (기본값)
+OLLAMA_TIMEOUT=120                       # 선택 (기본값)
 
 # Langfuse 연동 (선택)
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_HOST=https://cloud.langfuse.com
 ```
+
+### 모델 프로필 (config/models.yaml)
+
+| 프로필 | LLM | Embedding | 용도 |
+|--------|-----|-----------|------|
+| `dev` | gemma3:1b (Ollama) | qwen3-embedding:0.6b | 개발/테스트 |
+| `prod` | gpt-oss:20b (Ollama) | qwen3-embedding:8b | 운영 환경 |
+| `openai` | gpt-5-nano | text-embedding-3-small | 외부망 |
 
 ## 문서
 
@@ -121,18 +145,22 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 ## 아키텍처
 
 ```
-src/evalvault/
-├── domain/           # 비즈니스 로직
-│   ├── entities/     # TestCase, Dataset, EvaluationRun
-│   ├── services/     # RagasEvaluator
-│   └── metrics/      # 커스텀 메트릭
-├── ports/            # 인터페이스
-│   ├── inbound/      # EvaluatorPort
-│   └── outbound/     # LLMPort, StoragePort, TrackerPort
-├── adapters/         # 구현체
-│   ├── inbound/      # CLI (Typer)
-│   └── outbound/     # OpenAI, SQLite, Langfuse, ...
-└── config/           # Settings
+EvalVault/
+├── config/
+│   └── models.yaml       # 모델 프로필 (Git 관리)
+├── src/evalvault/
+│   ├── domain/           # 비즈니스 로직
+│   │   ├── entities/     # TestCase, Dataset, EvaluationRun
+│   │   ├── services/     # RagasEvaluator
+│   │   └── metrics/      # 커스텀 메트릭
+│   ├── ports/            # 인터페이스
+│   │   ├── inbound/      # EvaluatorPort
+│   │   └── outbound/     # LLMPort, StoragePort, TrackerPort
+│   ├── adapters/         # 구현체
+│   │   ├── inbound/      # CLI (Typer)
+│   │   └── outbound/     # OpenAI, Ollama, SQLite, Langfuse, ...
+│   └── config/           # Settings, ModelConfig
+└── .env                  # 시크릿/인프라 설정 (gitignore)
 ```
 
 ## 개발
@@ -151,6 +179,7 @@ ruff format src/
 
 ## 버전
 
+- **v0.4.0** (2025-12-25): Ollama 지원 (폐쇄망), 프로필 기반 모델 설정, --profile CLI 옵션
 - **v0.3.0** (2025-12-24): Phase 6 완료, 6개 메트릭, Ragas v1.0 호환
 - **v0.2.0** (2024-12-24): SQLite 저장, 히스토리 기능
 - **v0.1.0** (2024-12-24): 초기 릴리스

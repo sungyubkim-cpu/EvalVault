@@ -89,12 +89,12 @@ class TestCLIRun:
 
     @patch("evalvault.adapters.inbound.cli.get_loader")
     @patch("evalvault.adapters.inbound.cli.RagasEvaluator")
-    @patch("evalvault.adapters.inbound.cli.OpenAIAdapter")
+    @patch("evalvault.adapters.inbound.cli.get_llm_adapter")
     @patch("evalvault.adapters.inbound.cli.Settings")
     def test_run_with_valid_dataset(
         self,
         mock_settings_cls,
-        mock_openai_cls,
+        mock_get_llm_adapter,
         mock_evaluator_cls,
         mock_get_loader,
         mock_dataset,
@@ -106,7 +106,8 @@ class TestCLIRun:
         mock_settings = MagicMock()
         mock_settings.openai_api_key = "test-key"
         mock_settings.openai_model = get_test_model()
-        mock_settings.get_all_thresholds.return_value = {"faithfulness": 0.7}
+        mock_settings.llm_provider = "openai"
+        mock_settings.evalvault_profile = None
         mock_settings_cls.return_value = mock_settings
 
         mock_loader = MagicMock()
@@ -117,8 +118,8 @@ class TestCLIRun:
         mock_evaluator.evaluate = AsyncMock(return_value=mock_evaluation_run)
         mock_evaluator_cls.return_value = mock_evaluator
 
-        mock_openai = MagicMock()
-        mock_openai_cls.return_value = mock_openai
+        mock_llm = MagicMock()
+        mock_get_llm_adapter.return_value = mock_llm
 
         # Create test file
         test_file = tmp_path / "test.csv"
@@ -135,12 +136,12 @@ class TestCLIRun:
 
     @patch("evalvault.adapters.inbound.cli.get_loader")
     @patch("evalvault.adapters.inbound.cli.RagasEvaluator")
-    @patch("evalvault.adapters.inbound.cli.OpenAIAdapter")
+    @patch("evalvault.adapters.inbound.cli.get_llm_adapter")
     @patch("evalvault.adapters.inbound.cli.Settings")
     def test_run_with_multiple_metrics(
         self,
         mock_settings_cls,
-        mock_openai_cls,
+        mock_get_llm_adapter,
         mock_evaluator_cls,
         mock_get_loader,
         tmp_path,
@@ -152,10 +153,8 @@ class TestCLIRun:
         mock_settings = MagicMock()
         mock_settings.openai_api_key = "test-key"
         mock_settings.openai_model = get_test_model()
-        mock_settings.get_all_thresholds.return_value = {
-            "faithfulness": 0.7,
-            "answer_relevancy": 0.7,
-        }
+        mock_settings.llm_provider = "openai"
+        mock_settings.evalvault_profile = None
         mock_settings_cls.return_value = mock_settings
 
         mock_dataset = Dataset(
@@ -200,8 +199,8 @@ class TestCLIRun:
         mock_evaluator.evaluate = AsyncMock(return_value=mock_run)
         mock_evaluator_cls.return_value = mock_evaluator
 
-        mock_openai = MagicMock()
-        mock_openai_cls.return_value = mock_openai
+        mock_llm = MagicMock()
+        mock_get_llm_adapter.return_value = mock_llm
 
         # Create test file
         test_file = tmp_path / "test.csv"
@@ -239,19 +238,16 @@ class TestCLIConfig:
         mock_settings = MagicMock()
         mock_settings.openai_api_key = "test-key"
         mock_settings.openai_model = test_model
+        mock_settings.openai_embedding_model = "text-embedding-3-small"
         mock_settings.openai_base_url = None
+        mock_settings.llm_provider = "openai"
+        mock_settings.evalvault_profile = None  # No profile set
         mock_settings.langfuse_public_key = None
         mock_settings.langfuse_secret_key = None
         mock_settings.langfuse_host = "https://cloud.langfuse.com"
-        mock_settings.get_all_thresholds.return_value = {
-            "faithfulness": 0.7,
-            "answer_relevancy": 0.7,
-            "context_precision": 0.7,
-            "context_recall": 0.7,
-        }
         mock_settings_cls.return_value = mock_settings
 
         result = runner.invoke(app, ["config"])
         assert result.exit_code == 0
-        # Check for model name or configuration related text
-        assert test_model in result.stdout or "Configuration" in result.stdout
+        # Check for configuration related text
+        assert "Configuration" in result.stdout

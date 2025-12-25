@@ -10,12 +10,13 @@
 2. [5분 만에 시작하기](#5분-만에-시작하기)
 3. [설치 가이드](#설치-가이드)
 4. [환경 설정](#환경-설정)
-5. [CLI 사용법](#cli-사용법)
-6. [평가 메트릭 이해하기](#평가-메트릭-이해하기)
-7. [데이터셋 준비](#데이터셋-준비)
-8. [결과 저장 및 추적](#결과-저장-및-추적)
-9. [고급 기능](#고급-기능)
-10. [문제 해결](#문제-해결)
+5. [모델 프로필 설정](#모델-프로필-설정)
+6. [CLI 사용법](#cli-사용법)
+7. [평가 메트릭 이해하기](#평가-메트릭-이해하기)
+8. [데이터셋 준비](#데이터셋-준비)
+9. [결과 저장 및 추적](#결과-저장-및-추적)
+10. [고급 기능](#고급-기능)
+11. [문제 해결](#문제-해결)
 
 ---
 
@@ -183,6 +184,102 @@ Langfuse: Configured ✓
 
 ---
 
+## 모델 프로필 설정
+
+EvalVault는 **프로필 기반 모델 설정**을 지원합니다. 개발/운영 환경별로 다른 모델을 사용하거나, 폐쇄망에서 로컬 Ollama 모델을 사용할 수 있습니다.
+
+### 설정 파일 역할 분리
+
+| 파일 | 역할 | Git 관리 |
+|------|------|----------|
+| `config/models.yaml` | 모델 프로필 정의 (모델명, provider) | ✅ Yes |
+| `.env` | 시크릿/인프라 설정 (API 키, 서버 URL) | ❌ No |
+
+### 사용 가능한 프로필
+
+| 프로필 | LLM | Embedding | 용도 |
+|--------|-----|-----------|------|
+| `dev` | gemma3:1b (Ollama) | qwen3-embedding:0.6b | 개발/테스트 |
+| `prod` | gpt-oss:20b (Ollama) | qwen3-embedding:8b | 운영 환경 |
+| `openai` | gpt-5-nano (OpenAI) | text-embedding-3-small | 외부망 |
+
+### 프로필 사용 방법
+
+#### 방법 1: .env 파일에서 설정
+
+```bash
+# .env
+EVALVAULT_PROFILE=dev
+```
+
+```bash
+# 프로필 자동 적용
+evalvault run data.json --metrics faithfulness
+```
+
+#### 방법 2: CLI 옵션으로 오버라이드
+
+```bash
+# --profile 옵션으로 프로필 선택
+evalvault run data.json --profile prod --metrics faithfulness
+
+# 단축 옵션
+evalvault run data.json -p openai --metrics faithfulness
+```
+
+### 폐쇄망(Air-gapped) 환경 설정
+
+외부 인터넷 접근이 불가능한 환경에서는 Ollama를 사용합니다.
+
+```bash
+# .env 설정
+EVALVAULT_PROFILE=dev              # 또는 prod
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_TIMEOUT=120
+```
+
+```bash
+# Ollama 모델 설치 (사전 준비)
+ollama pull gemma3:1b
+ollama pull qwen3-embedding:0.6b
+```
+
+### 프로필 설정 파일 (config/models.yaml)
+
+```yaml
+profiles:
+  dev:
+    description: "개발/테스트용 경량 모델"
+    llm:
+      provider: ollama
+      model: gemma3:1b
+    embedding:
+      provider: ollama
+      model: qwen3-embedding:0.6b
+
+  prod:
+    description: "운영용 고성능 모델"
+    llm:
+      provider: ollama
+      model: gpt-oss:20b
+      options:
+        think_level: medium
+    embedding:
+      provider: ollama
+      model: qwen3-embedding:8b
+
+  openai:
+    description: "OpenAI API 사용 (외부망)"
+    llm:
+      provider: openai
+      model: gpt-5-nano
+    embedding:
+      provider: openai
+      model: text-embedding-3-small
+```
+
+---
+
 ## CLI 사용법
 
 ### 기본 명령어
@@ -210,6 +307,12 @@ evalvault run data.json --metrics faithfulness,answer_relevancy,context_precisio
 
 # 예시: 모든 메트릭
 evalvault run data.json --metrics faithfulness,answer_relevancy,context_precision,context_recall,factual_correctness,semantic_similarity
+
+# 예시: 프로필 지정 (Ollama dev 환경)
+evalvault run data.json --profile dev --metrics faithfulness
+
+# 예시: 프로필 지정 (OpenAI)
+evalvault run data.json -p openai --metrics faithfulness
 
 # 예시: Langfuse 연동
 evalvault run data.json --metrics faithfulness --langfuse
@@ -601,22 +704,48 @@ evalvault run data.json --metrics faithfulness --verbose
 
 ### A. 환경 변수 전체 목록
 
+#### 프로필 설정
+
 | 변수 | 필수 | 기본값 | 설명 |
 |------|------|--------|------|
-| `OPENAI_API_KEY` | ✅ | - | OpenAI API 키 |
+| `EVALVAULT_PROFILE` | ❌ | - | 모델 프로필 (dev, prod, openai) |
+| `LLM_PROVIDER` | ❌ | openai | LLM 제공자 (openai, ollama) |
+
+#### OpenAI 설정 (외부망)
+
+| 변수 | 필수 | 기본값 | 설명 |
+|------|------|--------|------|
+| `OPENAI_API_KEY` | ⚠️ | - | OpenAI API 키 (openai 사용 시 필수) |
 | `OPENAI_MODEL` | ❌ | gpt-5-nano | 평가에 사용할 모델 |
 | `OPENAI_EMBEDDING_MODEL` | ❌ | text-embedding-3-small | 임베딩 모델 |
 | `OPENAI_BASE_URL` | ❌ | - | 커스텀 API 엔드포인트 |
+
+#### Ollama 설정 (폐쇄망)
+
+| 변수 | 필수 | 기본값 | 설명 |
+|------|------|--------|------|
+| `OLLAMA_BASE_URL` | ❌ | http://localhost:11434 | Ollama 서버 URL |
+| `OLLAMA_MODEL` | ❌ | gemma3:1b | Ollama LLM 모델 |
+| `OLLAMA_EMBEDDING_MODEL` | ❌ | qwen3-embedding:0.6b | Ollama 임베딩 모델 |
+| `OLLAMA_TIMEOUT` | ❌ | 120 | 요청 타임아웃 (초) |
+
+#### 추적/모니터링 설정
+
+| 변수 | 필수 | 기본값 | 설명 |
+|------|------|--------|------|
 | `LANGFUSE_PUBLIC_KEY` | ❌ | - | Langfuse 공개 키 |
 | `LANGFUSE_SECRET_KEY` | ❌ | - | Langfuse 비밀 키 |
 | `LANGFUSE_HOST` | ❌ | cloud.langfuse.com | Langfuse 호스트 |
 
 > **Note**: 메트릭 임계값은 데이터셋 JSON의 `thresholds` 필드에 정의합니다.
+> 모델 프로필은 `config/models.yaml`에서 관리하며 Git으로 버전 관리됩니다.
 
 ### B. 프로젝트 구조
 
 ```
 EvalVault/
+├── config/
+│   └── models.yaml       # 모델 프로필 설정 (Git 관리)
 ├── src/evalvault/
 │   ├── domain/           # 비즈니스 로직
 │   │   ├── entities/     # 도메인 엔티티
@@ -625,10 +754,11 @@ EvalVault/
 │   ├── ports/            # 인터페이스 정의
 │   ├── adapters/         # 구현체
 │   │   ├── inbound/      # CLI
-│   │   └── outbound/     # 외부 서비스 연동
-│   └── config/           # 설정
+│   │   └── outbound/     # 외부 서비스 연동 (OpenAI, Ollama, ...)
+│   └── config/           # Settings, ModelConfig
 ├── tests/                # 테스트
 ├── docs/                 # 문서
+├── .env                  # 시크릿/인프라 설정 (gitignore)
 └── data/                 # 데이터 (gitignore)
 ```
 
@@ -636,6 +766,7 @@ EvalVault/
 
 | 버전 | 날짜 | 주요 변경 |
 |------|------|-----------|
+| 0.4.0 | 2025-12-25 | Ollama 지원 (폐쇄망), 프로필 기반 모델 설정, --profile CLI 옵션 |
 | 0.3.0 | 2025-12-24 | Phase 6 완료, 6개 메트릭 지원, Ragas v1.0 호환 |
 | 0.2.0 | 2024-12-24 | SQLite 저장, CLI 히스토리 기능 |
 | 0.1.0 | 2024-12-24 | 초기 릴리스, 4개 기본 메트릭 |

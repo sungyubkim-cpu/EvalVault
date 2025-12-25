@@ -1,0 +1,65 @@
+# EvalVault 모델 프로필 설정
+#
+# ┌─────────────────────────────────────────────────────────────┐
+# │ 이 파일의 역할: 모델 프로필 정의 (git 포함)                   │
+# │ .env의 역할: 인프라/시크릿 설정 (OLLAMA_BASE_URL 등)         │
+# └─────────────────────────────────────────────────────────────┘
+#
+# 사용법:
+#   1. .env 파일에서 EVALVAULT_PROFILE=dev 설정
+#   2. evalvault run data.json --metrics faithfulness
+#
+# CLI에서 프로필 오버라이드:
+#   evalvault run data.json --profile prod --metrics faithfulness
+
+# 프로필 정의
+profiles:
+  # ──────────────────────────────────────────────────────────────
+  # 개발 환경 - 경량 모델로 빠른 테스트
+  # ──────────────────────────────────────────────────────────────
+  dev:
+    description: "개발/테스트용 경량 모델"
+    llm:
+      provider: ollama
+      model: gemma3:1b
+    embedding:
+      provider: ollama
+      model: qwen3-embedding:0.6b
+
+  # ──────────────────────────────────────────────────────────────
+  # 운영 환경 - 고성능 모델
+  # ──────────────────────────────────────────────────────────────
+  prod:
+    description: "운영용 고성능 모델"
+    llm:
+      provider: ollama
+      model: gpt-oss:20b
+      options:
+        think_level: medium
+    embedding:
+      provider: ollama
+      model: qwen3-embedding:8b
+
+  # ──────────────────────────────────────────────────────────────
+  # OpenAI 사용 시 (외부망)
+  # ──────────────────────────────────────────────────────────────
+  openai:
+    description: "OpenAI API 사용 (외부망)"
+    llm:
+      provider: openai
+      model: gpt-5-nano
+    embedding:
+      provider: openai
+      model: text-embedding-3-small
+
+# ──────────────────────────────────────────────────────────────
+# 참고: 인프라 설정
+# ──────────────────────────────────────────────────────────────
+# 서버 URL, API 키 등은 .env 파일에서 관리합니다:
+#   - OLLAMA_BASE_URL=http://localhost:11434
+#   - OLLAMA_TIMEOUT=120
+#   - OPENAI_API_KEY=sk-...
+#
+# 이렇게 분리하면:
+#   - 모델 정의는 git으로 버전 관리
+#   - 시크릿/인프라 설정은 환경별로 분리
