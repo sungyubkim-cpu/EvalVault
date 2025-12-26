@@ -50,7 +50,8 @@ class LangfuseAdapter(TrackerPort):
             span = self._client.start_span(name=name)
             trace_id = span.trace_id
             # Update trace-level name and metadata
-            span.update_trace(name=name, metadata=metadata)
+            if metadata is not None:
+                span.update_trace(name=name, metadata=metadata)
             self._traces[trace_id] = span
         else:
             # Langfuse 2.x: use trace method
@@ -259,7 +260,6 @@ class LangfuseAdapter(TrackerPort):
             "metrics": metric_summary,
         }
 
-        # Create trace metadata
         metadata = {
             "run_id": run.run_id,
             "dataset_name": run.dataset_name,
@@ -273,6 +273,7 @@ class LangfuseAdapter(TrackerPort):
             "metrics_evaluated": run.metrics_evaluated,
             "thresholds": run.thresholds,
             "metric_pass_rates": metric_summary,
+            "event_type": "ragas_evaluation",
         }
 
         if run.finished_at:
@@ -283,7 +284,6 @@ class LangfuseAdapter(TrackerPort):
             metadata["total_cost_usd"] = run.total_cost_usd
             trace_output["summary"]["total_cost_usd"] = run.total_cost_usd
 
-        # Create tags for filtering
         tags = [
             f"dataset:{run.dataset_name}",
             f"model:{run.model_name}",
@@ -293,25 +293,63 @@ class LangfuseAdapter(TrackerPort):
         for metric_name in run.metrics_evaluated:
             tags.append(f"metric:{metric_name}")
 
-        # Create trace using Langfuse v3 API (start_span creates a trace)
         trace_name = f"evaluation-run-{run.run_id}"
-        root_span = self._client.start_span(name=trace_name)
-        trace_id = root_span.trace_id
+        trace_id = self.start_trace(name=trace_name)
+        root_span = self._traces[trace_id]
 
-        # Update trace-level metadata, input, output, tags
-        root_span.update_trace(
-            name=trace_name,
-            input=trace_input,
-            output=trace_output,
-            metadata=metadata,
-            tags=tags,
+        if hasattr(root_span, "update_trace"):
+            root_span.update_trace(
+                name=trace_name,
+                input=trace_input,
+                output=trace_output,
+                metadata=metadata,
+                tags=tags,
+            )
+            root_span.update(
+                start_time=run.started_at,
+                end_time=run.finished_at,
+            )
+        else:
+            root_span.update(
+                name=trace_name,
+                input=trace_input,
+                output=trace_output,
+                metadata=metadata,
+                tags=tags,
+            )
+            if hasattr(root_span, "update"):
+                root_span.update(
+                    start_time=run.started_at,
+                    end_time=run.finished_at,
+                )
+
+        structured_artifact = {
+            "type": "ragas_evaluation",
+            "dataset": trace_input["dataset"],
+            "evaluation_config": trace_input["evaluation_config"],
+            "summary": trace_output["summary"],
+            "metrics": metric_summary,
+            "test_cases": [
+                {
+                    "test_case_id": result.test_case_id,
+                    "all_passed": result.all_passed,
+                    "metrics": {
+                        metric.name: {
+                            "score": metric.score,
+                            "threshold": metric.threshold,
+                            "passed": metric.passed,
+                        }
+                        for metric in result.metrics
+                    },
+                }
+                for result in run.results
+            ],
+        }
+        self.save_artifact(
+            trace_id=trace_id,
+            name="ragas_evaluation",
+            data=structured_artifact,
         )
-        # Update span with timing
-        root_span.update(
-            start_time=run.started_at,
-            end_time=run.finished_at,
-        )
-        self._traces[trace_id] = root_span
 
         # Log average scores for each metric
         for metric_name, summary in metric_summary.items():
@@ -358,19 +396,25 @@ class LangfuseAdapter(TrackerPort):
             if result.cost_usd:
                 span_metadata["cost_usd"] = result.cost_usd
 
-            # Create child span with full data and timing (Langfuse v3 API)
-            child_span = root_span.start_span(
-                name=f"test-case-{result.test_case_id}",
-                input=span_input,
-                output=span_output,
-                metadata=span_metadata,
-            )
-            # Update span with timing
-            child_span.update(
-                start_time=result.started_at,
-                end_time=result.finished_at,
-            )
-            child_span.end()
+            if hasattr(root_span, "start_span"):
+                child_span = root_span.start_span(
+                    name=f"test-case-{result.test_case_id}",
+                    input=span_input,
+                    output=span_output,
+                    metadata=span_metadata,
+                )
+                child_span.update(
+                    start_time=result.started_at,
+                    end_time=result.finished_at,
+                )
+                child_span.end()
+            else:
+                root_span.span(
+                    name=f"test-case-{result.test_case_id}",
+                    input=span_input,
+                    output=span_output,
+                    metadata=span_metadata,
+                )
 
             # Log individual metric scores
             for metric in result.metrics:
@@ -392,31 +436,33 @@ class LangfuseAdapter(TrackerPort):
 
             # Create generation span for cost tracking (Langfuse v3 API)
             # Note: use start_observation with as_type='generation' (SDK 3.x)
-            generation_span = root_span.start_observation(
-                name="ragas-evaluation",
-                as_type="generation",
-                model=run.model_name,
-                input={"metrics": run.metrics_evaluated, "total_test_cases": run.total_test_cases},
-                output={"total_tokens": run.total_tokens},
-                usage_details={
-                    "input": total_prompt_tokens,
-                    "output": total_completion_tokens,
-                    "total": run.total_tokens,
-                },
-                metadata={
-                    "evaluation_type": "ragas",
-                    "metrics": run.metrics_evaluated,
-                    "total_test_cases": run.total_test_cases,
-                },
-            )
-            generation_span.update(
-                start_time=run.started_at,
-                end_time=run.finished_at,
-            )
-            generation_span.end()
+            if hasattr(root_span, "start_observation"):
+                generation_span = root_span.start_observation(
+                    name="ragas-evaluation",
+                    as_type="generation",
+                    model=run.model_name,
+                    input={"metrics": run.metrics_evaluated, "total_test_cases": run.total_test_cases},
+                    output={"total_tokens": run.total_tokens},
+                    usage_details={
+                        "input": total_prompt_tokens,
+                        "output": total_completion_tokens,
+                        "total": run.total_tokens,
+                    },
+                    metadata={
+                        "evaluation_type": "ragas",
+                        "metrics": run.metrics_evaluated,
+                        "total_test_cases": run.total_test_cases,
+                    },
+                )
+                generation_span.update(
+                    start_time=run.started_at,
+                    end_time=run.finished_at,
+                )
+                generation_span.end()
 
         # End the root span
-        root_span.end()
+        if hasattr(root_span, "end"):
+            root_span.end()
 
         # Flush data to Langfuse
         self._client.flush()

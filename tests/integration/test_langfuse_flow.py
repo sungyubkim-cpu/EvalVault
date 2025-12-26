@@ -97,7 +97,7 @@ class TestLangfuseFlowWithMock:
         # Verify trace was created with input/output
         assert trace_id == "trace-123"
         mock_langfuse.start_span.assert_called_once()
-        update_call = mock_span.update_trace.call_args
+        update_call = mock_span.update_trace.call_args_list[0]
         assert "input" in update_call[1]
         assert "output" in update_call[1]
 

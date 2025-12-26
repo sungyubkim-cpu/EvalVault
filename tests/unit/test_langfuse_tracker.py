@@ -76,8 +76,7 @@ class TestStartTrace:
 
         assert trace_id == "trace-123"
         langfuse_adapter._client.start_span.assert_called_once_with(name="test-trace")
-        # update_trace should be called to set trace-level name and metadata
-        mock_span.update_trace.assert_called_once_with(name="test-trace", metadata=None)
+        mock_span.update_trace.assert_not_called()
         assert "trace-123" in langfuse_adapter._traces
 
     def test_start_trace_with_metadata(self, langfuse_adapter):
@@ -309,15 +308,18 @@ class TestLogEvaluationRun:
         mock_span.trace_id = "trace-eval-123"
         langfuse_adapter._client.start_span.return_value = mock_span
 
-        trace_id = langfuse_adapter.log_evaluation_run(run)
+        with patch.object(
+            langfuse_adapter, "save_artifact", wraps=langfuse_adapter.save_artifact
+        ) as mock_save_artifact:
+            trace_id = langfuse_adapter.log_evaluation_run(run)
 
         # Verify trace was created with input/output
         assert trace_id == "trace-eval-123"
         langfuse_adapter._client.start_span.assert_called_once()
 
         # Verify update_trace was called with input/output
-        mock_span.update_trace.assert_called_once()
-        update_call = mock_span.update_trace.call_args
+        assert mock_span.update_trace.call_count >= 1
+        update_call = mock_span.update_trace.call_args_list[0]
 
         # Verify trace input contains dataset and config
         assert "input" in update_call[1]
@@ -334,11 +336,19 @@ class TestLogEvaluationRun:
         assert update_call[1]["metadata"]["model_name"] == "gpt-4o"
         assert update_call[1]["metadata"]["total_test_cases"] == 2
 
+        # Verify metadata includes event type
+        assert update_call[1]["metadata"]["event_type"] == "ragas_evaluation"
+
         # Verify child spans were created for each test case
         assert mock_span.start_span.call_count == 2
 
         # Verify scores were logged (score_trace is called due to MagicMock having all attrs)
         assert mock_span.score_trace.call_count >= 2  # At least avg scores
+
+        # Verify structured artifact saved
+        mock_save_artifact.assert_called_once()
+        artifact_payload = mock_save_artifact.call_args[1]["data"]
+        assert artifact_payload["type"] == "ragas_evaluation"
 
         # Verify flush was called
         langfuse_adapter._client.flush.assert_called_once()
@@ -372,7 +382,7 @@ class TestLogEvaluationRun:
 
         assert trace_id == "trace-eval-456"
         # Verify metadata via update_trace call
-        update_call = mock_span.update_trace.call_args
+        update_call = mock_span.update_trace.call_args_list[0]
         assert update_call[1]["metadata"]["passed_test_cases"] == 1
         assert update_call[1]["metadata"]["pass_rate"] == 0.5
         # Verify output shows failure
@@ -397,7 +407,7 @@ class TestLogEvaluationRun:
 
         assert trace_id == "trace-empty"
         # Verify metadata via update_trace call
-        update_call = mock_span.update_trace.call_args
+        update_call = mock_span.update_trace.call_args_list[0]
         assert update_call[1]["metadata"]["total_test_cases"] == 0
         assert update_call[1]["metadata"]["pass_rate"] == 0.0
         # Verify no child spans created
