@@ -10,6 +10,7 @@ dependencies = [
     "langfuse",
     "openai",
     "langchain-openai",
+    "networkx",
     "pydantic",
     "pydantic-settings",
     "typer",

@@ -2,6 +2,7 @@
 
 from evalvault.adapters.outbound.llm.anthropic_adapter import AnthropicAdapter
 from evalvault.adapters.outbound.llm.azure_adapter import AzureOpenAIAdapter
+from evalvault.adapters.outbound.llm.llm_relation_augmenter import LLMRelationAugmenter
 from evalvault.adapters.outbound.llm.ollama_adapter import OllamaAdapter
 from evalvault.adapters.outbound.llm.openai_adapter import OpenAIAdapter
 from evalvault.config.settings import Settings
@@ -52,6 +53,7 @@ __all__ = [
     "OpenAIAdapter",
     "AzureOpenAIAdapter",
     "AnthropicAdapter",
+    "LLMRelationAugmenter",
     "OllamaAdapter",
     "get_llm_adapter",
 ]
