@@ -1,9 +1,12 @@
 """Tests for CLI interface."""
 
+import json
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.error import HTTPError
+
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock, AsyncMock
-from pathlib import Path
 
 from evalvault.adapters.inbound.cli import app
 from evalvault.domain.entities import (
@@ -228,6 +231,72 @@ class TestCLIMetrics:
         assert "context_recall" in result.stdout.lower()
 
 
+class TestKGCLI:
+    """CLI kg stats 명령 테스트."""
+
+    def test_kg_stats_help(self):
+        """kg stats help 출력."""
+        result = runner.invoke(app, ["kg", "stats", "--help"])
+        assert result.exit_code == 0
+        assert "threshold" in result.stdout.lower()
+
+    def test_kg_stats_runs_on_text_file(self, tmp_path):
+        """간단한 텍스트 파일로 kg stats 실행."""
+        sample_file = tmp_path / "doc.txt"
+        sample_file.write_text("삼성생명의 종신보험은 사망보험금을 보장합니다.", encoding="utf-8")
+
+        result = runner.invoke(app, ["kg", "stats", str(sample_file), "--no-langfuse"])
+
+        assert result.exit_code == 0
+        assert "Knowledge Graph Overview" in result.stdout
+
+    @patch("evalvault.adapters.inbound.cli.LangfuseAdapter")
+    @patch("evalvault.adapters.inbound.cli.Settings")
+    def test_kg_stats_logs_to_langfuse(self, mock_settings_cls, mock_langfuse, tmp_path):
+        """Langfuse 설정이 있으면 자동으로 로깅된다."""
+        sample_file = tmp_path / "doc.txt"
+        sample_file.write_text("삼성생명의 종신보험은 사망보험금을 보장합니다.", encoding="utf-8")
+
+        mock_settings = MagicMock()
+        mock_settings.langfuse_public_key = "pub"
+        mock_settings.langfuse_secret_key = "sec"
+        mock_settings.langfuse_host = "https://example"
+        mock_settings.evalvault_profile = None
+        mock_settings.llm_provider = "openai"
+        mock_settings.openai_api_key = "key"
+        mock_settings_cls.return_value = mock_settings
+
+        mock_tracker = MagicMock()
+        mock_tracker.start_trace.return_value = "trace-123"
+        mock_langfuse.return_value = mock_tracker
+
+        result = runner.invoke(app, ["kg", "stats", str(sample_file)])
+
+        assert result.exit_code == 0
+        mock_langfuse.assert_called_once()
+        mock_tracker.start_trace.assert_called_once()
+        mock_tracker.save_artifact.assert_called_once()
+        args, kwargs = mock_tracker.save_artifact.call_args
+        artifact_payload = kwargs.get("data") or (args[2] if len(args) >= 3 else None)
+        assert artifact_payload["type"] == "kg_stats"
+        assert "Langfuse trace ID" in result.stdout
+
+    def test_kg_stats_report_file(self, tmp_path):
+        """--report-file 옵션으로 JSON 저장."""
+        sample_file = tmp_path / "doc.txt"
+        sample_file.write_text("삼성생명의 종신보험은 사망보험금을 보장합니다.", encoding="utf-8")
+        report = tmp_path / "report.json"
+
+        result = runner.invoke(
+            app,
+            ["kg", "stats", str(sample_file), "--no-langfuse", "--report-file", str(report)],
+        )
+
+        assert result.exit_code == 0
+        data = json.loads(report.read_text(encoding="utf-8"))
+        assert data["type"] == "kg_stats_report"
+
+
 class TestCLIConfig:
     """CLI config 명령 테스트."""
 
@@ -251,3 +320,66 @@ class TestCLIConfig:
         assert result.exit_code == 0
         # Check for configuration related text
         assert "Configuration" in result.stdout
+
+
+class TestLangfuseDashboard:
+    """Langfuse dashboard 명령 테스트."""
+
+    @patch("evalvault.adapters.inbound.cli.Settings")
+    def test_dashboard_requires_credentials(self, mock_settings_cls):
+        mock_settings = MagicMock()
+        mock_settings.langfuse_public_key = None
+        mock_settings.langfuse_secret_key = None
+        mock_settings_cls.return_value = mock_settings
+
+        result = runner.invoke(app, ["langfuse-dashboard"])
+        assert result.exit_code != 0
+        assert "credentials" in result.stdout.lower()
+
+    @patch("evalvault.adapters.inbound.cli._fetch_langfuse_traces")
+    @patch("evalvault.adapters.inbound.cli.Settings")
+    def test_dashboard_outputs_table(self, mock_settings_cls, mock_fetch):
+        mock_settings = MagicMock()
+        mock_settings.langfuse_public_key = "pub"
+        mock_settings.langfuse_secret_key = "sec"
+        mock_settings.langfuse_host = "https://example"
+        mock_settings_cls.return_value = mock_settings
+        mock_fetch.return_value = [
+            {
+                "id": "trace-1",
+                "metadata": {
+                    "dataset_name": "test",
+                    "model_name": "gpt",
+                    "pass_rate": 0.9,
+                    "total_test_cases": 10,
+                },
+                "createdAt": "2024-06-01T00:00:00Z",
+            }
+        ]
+
+        result = runner.invoke(app, ["langfuse-dashboard"])
+        assert result.exit_code == 0
+        assert "trace-1" in result.stdout
+        mock_fetch.assert_called_once()
+
+    @patch("evalvault.adapters.inbound.cli._fetch_langfuse_traces")
+    @patch("evalvault.adapters.inbound.cli.Settings")
+    def test_dashboard_handles_http_error(self, mock_settings_cls, mock_fetch):
+        mock_settings = MagicMock()
+        mock_settings.langfuse_public_key = "pub"
+        mock_settings.langfuse_secret_key = "sec"
+        mock_settings.langfuse_host = "https://example"
+        mock_settings_cls.return_value = mock_settings
+
+        mock_fetch.side_effect = HTTPError(
+            url="https://example/api/public/traces",
+            code=405,
+            msg="Method Not Allowed",
+            hdrs=None,
+            fp=None,
+        )
+
+        result = runner.invoke(app, ["langfuse-dashboard"])
+
+        assert result.exit_code == 0
+        assert "public API not available" in result.stdout
