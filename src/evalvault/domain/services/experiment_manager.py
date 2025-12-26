@@ -43,7 +43,6 @@ class ExperimentManager:
             storage: 평가 결과를 조회하기 위한 StoragePort
         """
         self._storage = storage
-        self._experiments: dict[str, Experiment] = {}
 
     def create_experiment(
         self,
@@ -69,7 +68,8 @@ class ExperimentManager:
             hypothesis=hypothesis,
             metrics_to_compare=metrics or [],
         )
-        self._experiments[experiment.experiment_id] = experiment
+        # 저장소에 저장
+        self._storage.save_experiment(experiment)
         return experiment
 
     def get_experiment(self, experiment_id: str) -> Experiment:
@@ -84,9 +84,7 @@ class ExperimentManager:
         Raises:
             KeyError: 실험을 찾을 수 없는 경우
         """
-        if experiment_id not in self._experiments:
-            raise KeyError(f"Experiment not found: {experiment_id}")
-        return self._experiments[experiment_id]
+        return self._storage.get_experiment(experiment_id)
 
     def list_experiments(self, status: str | None = None) -> list[Experiment]:
         """실험 목록 조회.
@@ -97,10 +95,7 @@ class ExperimentManager:
         Returns:
             Experiment 객체 리스트
         """
-        experiments = list(self._experiments.values())
-        if status:
-            experiments = [exp for exp in experiments if exp.status == status]
-        return experiments
+        return self._storage.list_experiments(status=status)
 
     def compare_groups(self, experiment_id: str) -> list[MetricComparison]:
         """그룹 간 메트릭 비교.
@@ -228,3 +223,33 @@ class ExperimentManager:
         experiment = self.get_experiment(experiment_id)
         experiment.status = "completed"
         experiment.conclusion = conclusion
+        # 저장소에 업데이트
+        self._storage.update_experiment(experiment)
+
+    def add_group_to_experiment(
+        self, experiment_id: str, group_name: str, description: str = ""
+    ) -> None:
+        """실험에 그룹 추가.
+
+        Args:
+            experiment_id: 실험 ID
+            group_name: 그룹 이름
+            description: 그룹 설명
+        """
+        experiment = self.get_experiment(experiment_id)
+        experiment.add_group(group_name, description)
+        self._storage.update_experiment(experiment)
+
+    def add_run_to_experiment_group(
+        self, experiment_id: str, group_name: str, run_id: str
+    ) -> None:
+        """실험 그룹에 평가 실행 추가.
+
+        Args:
+            experiment_id: 실험 ID
+            group_name: 그룹 이름
+            run_id: 추가할 평가 실행 ID
+        """
+        experiment = self.get_experiment(experiment_id)
+        experiment.add_run_to_group(group_name, run_id)
+        self._storage.update_experiment(experiment)

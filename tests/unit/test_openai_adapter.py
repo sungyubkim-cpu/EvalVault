@@ -12,6 +12,15 @@ from tests.unit.conftest import get_test_model
 class TestOpenAIAdapter:
     """OpenAI adapter 테스트."""
 
+    @pytest.fixture(autouse=True)
+    def mock_ragas_deps(self):
+        """Mock Ragas dependencies to avoid actual API calls."""
+        with patch("evalvault.adapters.outbound.llm.openai_adapter.llm_factory") as mock_llm, \
+             patch("evalvault.adapters.outbound.llm.openai_adapter.RagasOpenAIEmbeddings") as mock_embed:
+            mock_llm.return_value = MagicMock()
+            mock_embed.return_value = MagicMock()
+            yield
+
     @pytest.fixture
     def model_name(self):
         """Get model name from environment."""

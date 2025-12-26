@@ -301,14 +301,14 @@ class TestRagasEvaluator:
         """METRIC_MAP에 factual_correctness가 포함되는지 테스트."""
         evaluator = RagasEvaluator()
         assert "factual_correctness" in evaluator.METRIC_MAP
-        from ragas.metrics.collections import FactualCorrectness
+        from ragas.metrics import FactualCorrectness
         assert evaluator.METRIC_MAP["factual_correctness"] == FactualCorrectness
 
     def test_metric_map_includes_semantic_similarity(self):
         """METRIC_MAP에 semantic_similarity가 포함되는지 테스트."""
         evaluator = RagasEvaluator()
         assert "semantic_similarity" in evaluator.METRIC_MAP
-        from ragas.metrics.collections import SemanticSimilarity
+        from ragas.metrics import SemanticSimilarity
         assert evaluator.METRIC_MAP["semantic_similarity"] == SemanticSimilarity
 
     def test_embedding_required_metrics_constant(self):

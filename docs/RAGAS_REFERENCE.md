@@ -103,7 +103,7 @@ This is a simple example evaluating a summary for accuracy:
 
 ```python
 import asyncio
-from ragas.metrics.collections import AspectCritic
+from ragas.metrics import AspectCritic
 from ragas.llms import llm_factory
 
 # Setup your LLM

@@ -56,3 +56,45 @@ CREATE TABLE IF NOT EXISTS metric_scores (
 
 CREATE INDEX IF NOT EXISTS idx_scores_result_id ON metric_scores(result_id);
 CREATE INDEX IF NOT EXISTS idx_scores_metric_name ON metric_scores(metric_name);
+
+-- Experiments table for A/B testing
+CREATE TABLE IF NOT EXISTS experiments (
+    experiment_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    hypothesis TEXT,
+    status TEXT DEFAULT 'draft',  -- draft, running, completed, archived
+    metrics_to_compare TEXT,  -- JSON array of metric names
+    conclusion TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_experiments_status ON experiments(status);
+CREATE INDEX IF NOT EXISTS idx_experiments_created_at ON experiments(created_at DESC);
+
+-- Experiment groups table
+CREATE TABLE IF NOT EXISTS experiment_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    experiment_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (experiment_id) REFERENCES experiments(experiment_id) ON DELETE CASCADE,
+    UNIQUE(experiment_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_groups_experiment_id ON experiment_groups(experiment_id);
+
+-- Experiment group runs mapping
+CREATE TABLE IF NOT EXISTS experiment_group_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    run_id TEXT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES experiment_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (run_id) REFERENCES evaluation_runs(run_id) ON DELETE CASCADE,
+    UNIQUE(group_id, run_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_runs_group_id ON experiment_group_runs(group_id);

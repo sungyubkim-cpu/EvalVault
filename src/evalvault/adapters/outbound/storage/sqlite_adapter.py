@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from evalvault.domain.entities import EvaluationRun, MetricScore, TestCaseResult
+from evalvault.domain.entities.experiment import Experiment, ExperimentGroup
 
 
 class SQLiteStorageAdapter:
@@ -314,3 +315,197 @@ class SQLiteStorageAdapter:
 
         finally:
             conn.close()
+
+    # Experiment 관련 메서드
+
+    def save_experiment(self, experiment: Experiment) -> str:
+        """실험을 저장합니다.
+
+        Args:
+            experiment: 저장할 실험
+
+        Returns:
+            저장된 experiment의 ID
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Insert or replace experiment
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO experiments (
+                    experiment_id, name, description, hypothesis, status,
+                    metrics_to_compare, conclusion, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    experiment.experiment_id,
+                    experiment.name,
+                    experiment.description,
+                    experiment.hypothesis,
+                    experiment.status,
+                    json.dumps(experiment.metrics_to_compare),
+                    experiment.conclusion,
+                    experiment.created_at.isoformat(),
+                    datetime.now().isoformat(),
+                ),
+            )
+
+            # Delete existing groups and re-insert
+            cursor.execute(
+                "DELETE FROM experiment_groups WHERE experiment_id = ?",
+                (experiment.experiment_id,),
+            )
+
+            # Insert groups
+            for group in experiment.groups:
+                cursor.execute(
+                    """
+                    INSERT INTO experiment_groups (experiment_id, name, description)
+                    VALUES (?, ?, ?)
+                    """,
+                    (experiment.experiment_id, group.name, group.description),
+                )
+                group_id = cursor.lastrowid
+
+                # Insert group runs
+                for run_id in group.run_ids:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO experiment_group_runs (group_id, run_id)
+                        VALUES (?, ?)
+                        """,
+                        (group_id, run_id),
+                    )
+
+            conn.commit()
+            return experiment.experiment_id
+
+        finally:
+            conn.close()
+
+    def get_experiment(self, experiment_id: str) -> Experiment:
+        """실험을 조회합니다.
+
+        Args:
+            experiment_id: 조회할 실험 ID
+
+        Returns:
+            Experiment 객체
+
+        Raises:
+            KeyError: 실험을 찾을 수 없는 경우
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Fetch experiment
+            cursor.execute(
+                """
+                SELECT experiment_id, name, description, hypothesis, status,
+                       metrics_to_compare, conclusion, created_at
+                FROM experiments
+                WHERE experiment_id = ?
+                """,
+                (experiment_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row:
+                raise KeyError(f"Experiment not found: {experiment_id}")
+
+            # Fetch groups
+            cursor.execute(
+                """
+                SELECT id, name, description
+                FROM experiment_groups
+                WHERE experiment_id = ?
+                ORDER BY id
+                """,
+                (experiment_id,),
+            )
+            group_rows = cursor.fetchall()
+
+            groups = []
+            for group_row in group_rows:
+                group_id = group_row[0]
+
+                # Fetch run IDs for this group
+                cursor.execute(
+                    """
+                    SELECT run_id FROM experiment_group_runs
+                    WHERE group_id = ?
+                    ORDER BY added_at
+                    """,
+                    (group_id,),
+                )
+                run_ids = [r[0] for r in cursor.fetchall()]
+
+                groups.append(
+                    ExperimentGroup(
+                        name=group_row[1],
+                        description=group_row[2] or "",
+                        run_ids=run_ids,
+                    )
+                )
+
+            return Experiment(
+                experiment_id=row[0],
+                name=row[1],
+                description=row[2] or "",
+                hypothesis=row[3] or "",
+                status=row[4],
+                metrics_to_compare=json.loads(row[5]) if row[5] else [],
+                conclusion=row[6],
+                created_at=datetime.fromisoformat(row[7]),
+                groups=groups,
+            )
+
+        finally:
+            conn.close()
+
+    def list_experiments(
+        self,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[Experiment]:
+        """실험 목록을 조회합니다.
+
+        Args:
+            status: 필터링할 상태 (선택)
+            limit: 최대 조회 개수
+
+        Returns:
+            Experiment 객체 리스트
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        try:
+            query = "SELECT experiment_id FROM experiments WHERE 1=1"
+            params = []
+
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor.execute(query, params)
+            experiment_ids = [row[0] for row in cursor.fetchall()]
+
+            return [self.get_experiment(exp_id) for exp_id in experiment_ids]
+
+        finally:
+            conn.close()
+
+    def update_experiment(self, experiment: Experiment) -> None:
+        """실험을 업데이트합니다.
+
+        Args:
+            experiment: 업데이트할 실험
+        """
+        self.save_experiment(experiment)

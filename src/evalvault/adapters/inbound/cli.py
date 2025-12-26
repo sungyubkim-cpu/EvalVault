@@ -16,6 +16,7 @@ from evalvault.adapters.outbound.tracker.langfuse_adapter import LangfuseAdapter
 from evalvault.config.settings import Settings, apply_profile
 from evalvault.domain.services.evaluator import RagasEvaluator
 from evalvault.domain.services.experiment_manager import ExperimentManager
+from evalvault.domain.services.kg_generator import KnowledgeGraphGenerator
 from evalvault.domain.services.testset_generator import (
     BasicTestsetGenerator,
     GenerationConfig,
@@ -34,6 +35,7 @@ AVAILABLE_METRICS = [
     "answer_relevancy",
     "context_precision",
     "context_recall",
+    "insurance_term_accuracy",
 ]
 
 
@@ -95,6 +97,11 @@ def run(
         "--langfuse",
         "-l",
         help="Log results to Langfuse.",
+    ),
+    db_path: Path | None = typer.Option(
+        None,
+        "--db",
+        help="Path to SQLite database file for storing results.",
     ),
     verbose: bool = typer.Option(
         False,
@@ -194,6 +201,10 @@ def run(
     if langfuse:
         _log_to_langfuse(settings, result)
 
+    # Save to database if requested
+    if db_path:
+        _save_to_db(db_path, result)
+
     # Save to file if requested
     if output:
         _save_results(output, result)
@@ -280,6 +291,18 @@ def _log_to_langfuse(settings: Settings, result):
             console.print(f"[yellow]Warning:[/yellow] Failed to log to Langfuse: {e}")
 
 
+def _save_to_db(db_path: Path, result):
+    """Save results to SQLite database."""
+    with console.status(f"[bold green]Saving to database {db_path}..."):
+        try:
+            storage = SQLiteStorageAdapter(db_path=db_path)
+            storage.save_run(result)
+            console.print(f"[green]Results saved to database: {db_path}[/green]")
+            console.print(f"[dim]Run ID: {result.run_id}[/dim]")
+        except Exception as e:
+            console.print(f"[red]Error saving to database:[/red] {e}")
+
+
 def _save_results(output: Path, result):
     """Save results to JSON file."""
     import json
@@ -341,6 +364,11 @@ def metrics():
         "context_recall",
         "Measures if all relevant info is in retrieved contexts",
         "[green]Yes[/green]",
+    )
+    table.add_row(
+        "insurance_term_accuracy",
+        "Measures if insurance terms in answer are grounded in contexts",
+        "[red]No[/red]",
     )
 
     console.print(table)
@@ -466,6 +494,12 @@ def generate(
         "-n",
         help="Number of test questions to generate.",
     ),
+    method: str = typer.Option(
+        "basic",
+        "--method",
+        "-m",
+        help="Generation method: 'basic' or 'knowledge_graph'.",
+    ),
     output: Path = typer.Option(
         "generated_testset.json",
         "--output",
@@ -486,9 +520,16 @@ def generate(
     """Generate test dataset from documents."""
     import json
 
+    # Validate method
+    if method not in ["basic", "knowledge_graph"]:
+        console.print(f"[red]Error:[/red] Invalid method: {method}")
+        console.print("Available methods: basic, knowledge_graph")
+        raise typer.Exit(1)
+
     console.print("\n[bold]EvalVault[/bold] - Testset Generation")
     console.print(f"Documents: [cyan]{len(documents)}[/cyan]")
-    console.print(f"Target questions: [cyan]{num_questions}[/cyan]\n")
+    console.print(f"Target questions: [cyan]{num_questions}[/cyan]")
+    console.print(f"Method: [cyan]{method}[/cyan]\n")
 
     # Read documents
     with console.status("[bold green]Reading documents..."):
@@ -498,15 +539,30 @@ def generate(
                 doc_texts.append(f.read())
         console.print(f"[green]Loaded {len(doc_texts)} documents[/green]")
 
-    # Generate testset
+    # Generate testset based on method
     with console.status("[bold green]Generating testset..."):
-        generator = BasicTestsetGenerator()
-        config = GenerationConfig(
-            num_questions=num_questions,
-            chunk_size=chunk_size,
-            dataset_name=name,
-        )
-        dataset = generator.generate(doc_texts, config)
+        if method == "knowledge_graph":
+            generator = KnowledgeGraphGenerator()
+            generator.build_graph(doc_texts)
+
+            # Show graph statistics
+            stats = generator.get_statistics()
+            console.print(f"[dim]Knowledge Graph: {stats['num_entities']} entities, {stats['num_relations']} relations[/dim]")
+
+            dataset = generator.generate_dataset(
+                num_questions=num_questions,
+                name=name,
+                version="1.0.0",
+            )
+        else:  # basic method
+            generator = BasicTestsetGenerator()
+            config = GenerationConfig(
+                num_questions=num_questions,
+                chunk_size=chunk_size,
+                dataset_name=name,
+            )
+            dataset = generator.generate(doc_texts, config)
+
         console.print(f"[green]Generated {len(dataset.test_cases)} test cases[/green]")
 
     # Save to file
@@ -823,8 +879,7 @@ def experiment_add_group(
     manager = ExperimentManager(storage)
 
     try:
-        experiment = manager.get_experiment(experiment_id)
-        experiment.add_group(group_name, description)
+        manager.add_group_to_experiment(experiment_id, group_name, description)
         console.print(f"[green]Added group '{group_name}' to experiment {experiment_id}[/green]\n")
     except KeyError as e:
         console.print(f"[red]Error:[/red] {e}")
@@ -861,8 +916,7 @@ def experiment_add_run(
     manager = ExperimentManager(storage)
 
     try:
-        experiment = manager.get_experiment(experiment_id)
-        experiment.add_run_to_group(group_name, run_id)
+        manager.add_run_to_experiment_group(experiment_id, group_name, run_id)
         console.print(
             f"[green]Added run {run_id} to group '{group_name}' in experiment {experiment_id}[/green]\n"
         )

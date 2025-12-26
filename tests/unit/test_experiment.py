@@ -146,6 +146,32 @@ class TestExperimentManager:
     def mock_storage(self):
         """Mock StoragePort 픽스처."""
         storage = Mock()
+        # Experiment storage 관련 모킹
+        experiments: dict[str, Experiment] = {}
+
+        def save_experiment(exp):
+            experiments[exp.experiment_id] = exp
+            return exp.experiment_id
+
+        def get_experiment(exp_id):
+            if exp_id not in experiments:
+                raise KeyError(f"Experiment not found: {exp_id}")
+            return experiments[exp_id]
+
+        def list_experiments(status=None, limit=100):
+            exps = list(experiments.values())
+            if status:
+                exps = [e for e in exps if e.status == status]
+            return exps[:limit]
+
+        def update_experiment(exp):
+            experiments[exp.experiment_id] = exp
+
+        storage.save_experiment.side_effect = save_experiment
+        storage.get_experiment.side_effect = get_experiment
+        storage.list_experiments.side_effect = list_experiments
+        storage.update_experiment.side_effect = update_experiment
+
         return storage
 
     @pytest.fixture
@@ -216,7 +242,11 @@ class TestExperimentManager:
         assert exp.hypothesis == "GPT-5-nano will have higher faithfulness scores"
         assert exp.metrics_to_compare == ["faithfulness", "answer_relevancy"]
         assert exp.status == "draft"
-        assert exp.experiment_id in manager._experiments
+        # 저장소에 저장되었는지 확인
+        mock_storage.save_experiment.assert_called_once()
+        # 저장소에서 조회 가능한지 확인
+        retrieved = manager.get_experiment(exp.experiment_id)
+        assert retrieved.experiment_id == exp.experiment_id
 
     def test_create_experiment_with_defaults(self, mock_storage):
         """기본값으로 실험 생성 테스트."""

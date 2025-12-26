@@ -8,6 +8,8 @@ Ollama의 OpenAI 호환 API를 사용하여 Ragas와 통합합니다.
   - 임베딩: qwen3-embedding:0.6b (개발), qwen3-embedding:8b (운영)
 """
 
+from typing import Any
+
 import httpx
 from openai import AsyncOpenAI
 from ragas.embeddings import OpenAIEmbeddings as RagasOpenAIEmbeddings
@@ -19,6 +21,73 @@ from evalvault.adapters.outbound.llm.openai_adapter import (
 )
 from evalvault.config.settings import Settings
 from evalvault.ports.outbound.llm_port import LLMPort
+
+
+class ThinkingTokenTrackingAsyncOpenAI(TokenTrackingAsyncOpenAI):
+    """TokenTrackingAsyncOpenAI extended with thinking parameter injection.
+
+    Ollama의 thinking 기능을 지원하는 모델(gpt-oss-safeguard:20b 등)에
+    think_level 파라미터를 자동으로 주입합니다.
+    """
+
+    def __init__(
+        self,
+        usage_tracker: TokenUsage,
+        think_level: str | None = None,
+        **kwargs: Any,
+    ):
+        """Initialize thinking-aware client.
+
+        Args:
+            usage_tracker: Token usage tracker
+            think_level: Thinking level (e.g., 'medium') or None
+            **kwargs: Additional arguments passed to AsyncOpenAI
+        """
+        # Set think_level BEFORE calling super().__init__()
+        # because _create_tracking_chat() needs it during initialization
+        self._think_level = think_level
+        super().__init__(usage_tracker=usage_tracker, **kwargs)
+
+    def _create_tracking_chat(self) -> Any:
+        """Create a chat wrapper that tracks token usage and injects thinking params."""
+        original_completions = self._original_chat.completions
+        think_level = self._think_level
+
+        class ThinkingTrackingCompletions:
+            def __init__(inner_self, completions: Any, tracker: TokenUsage):
+                inner_self._completions = completions
+                inner_self._tracker = tracker
+
+            async def create(inner_self, **kwargs: Any) -> Any:
+                # Inject thinking parameters if configured
+                if think_level is not None:
+                    # Ollama expects thinking params in extra_body.options
+                    extra_body = kwargs.get("extra_body", {})
+                    options = extra_body.get("options", {})
+                    options["think_level"] = think_level
+                    extra_body["options"] = options
+                    kwargs["extra_body"] = extra_body
+
+                # Call the original method and track usage
+                response = await inner_self._completions.create(**kwargs)
+
+                # Extract usage from response
+                if hasattr(response, "usage") and response.usage:
+                    inner_self._tracker.add(
+                        prompt=response.usage.prompt_tokens or 0,
+                        completion=response.usage.completion_tokens or 0,
+                        total=response.usage.total_tokens or 0,
+                    )
+                return response
+
+        class ThinkingTrackingChat:
+            def __init__(inner_self, chat: Any, tracker: TokenUsage):
+                inner_self._chat = chat
+                inner_self.completions = ThinkingTrackingCompletions(
+                    chat.completions, tracker
+                )
+
+        return ThinkingTrackingChat(self._original_chat, self._usage_tracker)
 
 
 class OllamaAdapter(LLMPort):
@@ -56,8 +125,10 @@ class OllamaAdapter(LLMPort):
 
         # Create OpenAI-compatible client pointing to Ollama
         # Ollama doesn't require a real API key
-        self._client = TokenTrackingAsyncOpenAI(
+        # Use ThinkingTokenTrackingAsyncOpenAI to inject thinking parameters
+        self._client = ThinkingTokenTrackingAsyncOpenAI(
             usage_tracker=self._token_usage,
+            think_level=self._think_level,
             api_key="ollama",  # Dummy key for Ollama
             base_url=f"{self._base_url}/v1",
             http_client=http_client,

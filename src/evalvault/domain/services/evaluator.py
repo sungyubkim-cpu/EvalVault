@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from ragas import SingleTurnSample
-from ragas.metrics.collections import (
+from ragas.metrics import (
     AnswerRelevancy,
     ContextPrecision,
     ContextRecall,
@@ -19,6 +19,7 @@ from evalvault.domain.entities import (
     MetricScore,
     TestCaseResult,
 )
+from evalvault.domain.metrics.insurance import InsuranceTermAccuracy
 from evalvault.ports.outbound.llm_port import LLMPort
 
 
@@ -50,6 +51,11 @@ class RagasEvaluator:
         "context_recall": ContextRecall,
         "factual_correctness": FactualCorrectness,
         "semantic_similarity": SemanticSimilarity,
+    }
+
+    # Custom 메트릭 매핑 (Ragas 외부 메트릭)
+    CUSTOM_METRIC_MAP = {
+        "insurance_term_accuracy": InsuranceTermAccuracy,
     }
 
     # Metrics that require embeddings
@@ -107,10 +113,29 @@ class RagasEvaluator:
         # Use resolved thresholds
         thresholds = resolved_thresholds
 
-        # Evaluate with Ragas
-        eval_results_by_test_case = await self._evaluate_with_ragas(
-            dataset=dataset, metrics=metrics, llm=llm
-        )
+        # Separate Ragas metrics from custom metrics
+        ragas_metrics = [m for m in metrics if m in self.METRIC_MAP]
+        custom_metrics = [m for m in metrics if m in self.CUSTOM_METRIC_MAP]
+
+        # Evaluate with Ragas (if any Ragas metrics)
+        eval_results_by_test_case = {}
+        if ragas_metrics:
+            eval_results_by_test_case = await self._evaluate_with_ragas(
+                dataset=dataset, metrics=ragas_metrics, llm=llm
+            )
+
+        # Evaluate with custom metrics (if any custom metrics)
+        if custom_metrics:
+            custom_results = await self._evaluate_with_custom_metrics(
+                dataset=dataset, metrics=custom_metrics
+            )
+            # Merge custom results into eval_results
+            for test_case_id, custom_result in custom_results.items():
+                if test_case_id in eval_results_by_test_case:
+                    # Merge scores
+                    eval_results_by_test_case[test_case_id].scores.update(custom_result.scores)
+                else:
+                    eval_results_by_test_case[test_case_id] = custom_result
 
         # Aggregate results
         total_tokens = 0
@@ -215,54 +240,8 @@ class RagasEvaluator:
             test_case_started_at = datetime.now()
 
             for metric in ragas_metrics:
-                # Build kwargs based on metric type (each metric has different signature)
-                # Faithfulness: user_input, response, retrieved_contexts
-                # AnswerRelevancy: user_input, response
-                # ContextPrecision: user_input, reference, retrieved_contexts
-                # ContextRecall: user_input, retrieved_contexts, reference
-                # FactualCorrectness: response, reference
-                # SemanticSimilarity: reference, response
-                if metric.name == "faithfulness":
-                    ascore_kwargs = {
-                        "user_input": sample.user_input,
-                        "response": sample.response,
-                        "retrieved_contexts": sample.retrieved_contexts,
-                    }
-                elif metric.name == "answer_relevancy":
-                    ascore_kwargs = {
-                        "user_input": sample.user_input,
-                        "response": sample.response,
-                    }
-                elif metric.name == "context_precision":
-                    ascore_kwargs = {
-                        "user_input": sample.user_input,
-                        "reference": sample.reference,
-                        "retrieved_contexts": sample.retrieved_contexts,
-                    }
-                elif metric.name == "context_recall":
-                    ascore_kwargs = {
-                        "user_input": sample.user_input,
-                        "retrieved_contexts": sample.retrieved_contexts,
-                        "reference": sample.reference,
-                    }
-                elif metric.name == "factual_correctness":
-                    ascore_kwargs = {
-                        "response": sample.response,
-                        "reference": sample.reference,
-                    }
-                elif metric.name == "semantic_similarity":
-                    ascore_kwargs = {
-                        "reference": sample.reference,
-                        "response": sample.response,
-                    }
-                else:
-                    # Fallback for unknown metrics
-                    ascore_kwargs = {
-                        "user_input": sample.user_input,
-                        "response": sample.response,
-                    }
-
-                result = await metric.ascore(**ascore_kwargs)
+                # Use single_turn_ascore with SingleTurnSample (new Ragas API)
+                result = await metric.single_turn_ascore(sample)
                 # Handle both MetricResult and float returns
                 if hasattr(result, "score"):
                     scores[metric.name] = result.score
@@ -292,6 +271,62 @@ class RagasEvaluator:
                 prompt_tokens=test_case_prompt_tokens,
                 completion_tokens=test_case_completion_tokens,
                 cost_usd=0.0,  # Cost tracking not available via direct API
+                started_at=test_case_started_at,
+                finished_at=test_case_finished_at,
+                latency_ms=latency_ms,
+            )
+
+        return results
+
+    async def _evaluate_with_custom_metrics(
+        self, dataset: Dataset, metrics: list[str]
+    ) -> dict[str, TestCaseEvalResult]:
+        """커스텀 메트릭으로 평가 수행.
+
+        Args:
+            dataset: 평가할 데이터셋
+            metrics: 평가할 커스텀 메트릭 리스트
+
+        Returns:
+            테스트 케이스 ID별 평가 결과
+            예: {"tc-001": TestCaseEvalResult(scores={"insurance_term_accuracy": 0.9})}
+        """
+        results: dict[str, TestCaseEvalResult] = {}
+
+        # Initialize custom metric instances
+        metric_instances = {}
+        for metric_name in metrics:
+            metric_class = self.CUSTOM_METRIC_MAP.get(metric_name)
+            if metric_class:
+                metric_instances[metric_name] = metric_class()
+
+        # Evaluate each test case
+        for test_case in dataset.test_cases:
+            scores: dict[str, float] = {}
+
+            # Track start time for this test case
+            test_case_started_at = datetime.now()
+
+            # Run each custom metric
+            for metric_name, metric_instance in metric_instances.items():
+                score = metric_instance.score(
+                    answer=test_case.answer,
+                    contexts=test_case.contexts,
+                )
+                scores[metric_name] = score
+
+            # Track end time and calculate latency
+            test_case_finished_at = datetime.now()
+            latency_ms = int(
+                (test_case_finished_at - test_case_started_at).total_seconds() * 1000
+            )
+
+            results[test_case.id] = TestCaseEvalResult(
+                scores=scores,
+                tokens_used=0,  # Custom metrics don't use LLM
+                prompt_tokens=0,
+                completion_tokens=0,
+                cost_usd=0.0,
                 started_at=test_case_started_at,
                 finished_at=test_case_finished_at,
                 latency_ms=latency_ms,

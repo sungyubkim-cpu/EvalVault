@@ -8,6 +8,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from evalvault.domain.entities import EvaluationRun, MetricScore, TestCaseResult
+from evalvault.domain.entities.experiment import Experiment
 
 
 class PostgreSQLStorageAdapter:
@@ -306,3 +307,55 @@ class PostgreSQLStorageAdapter:
             deleted = cursor.rowcount > 0
             conn.commit()
             return deleted
+
+
+    # Experiment 관련 메서드 (TODO: 구현 필요)
+
+    def save_experiment(self, experiment: Experiment) -> str:
+        """실험을 저장합니다.
+
+        Args:
+            experiment: 저장할 실험
+
+        Returns:
+            저장된 experiment의 ID
+        """
+        raise NotImplementedError("PostgreSQL experiment storage not implemented yet")
+
+    def get_experiment(self, experiment_id: str) -> Experiment:
+        """실험을 조회합니다.
+
+        Args:
+            experiment_id: 조회할 실험 ID
+
+        Returns:
+            Experiment 객체
+
+        Raises:
+            KeyError: 실험을 찾을 수 없는 경우
+        """
+        raise NotImplementedError("PostgreSQL experiment storage not implemented yet")
+
+    def list_experiments(
+        self,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[Experiment]:
+        """실험 목록을 조회합니다.
+
+        Args:
+            status: 필터링할 상태 (선택)
+            limit: 최대 조회 개수
+
+        Returns:
+            Experiment 객체 리스트
+        """
+        raise NotImplementedError("PostgreSQL experiment storage not implemented yet")
+
+    def update_experiment(self, experiment: Experiment) -> None:
+        """실험을 업데이트합니다.
+
+        Args:
+            experiment: 업데이트할 실험
+        """
+        raise NotImplementedError("PostgreSQL experiment storage not implemented yet")

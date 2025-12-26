@@ -8,10 +8,10 @@
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from evalvault.config.settings import Settings
-from evalvault.adapters.outbound.llm.ollama_adapter import OllamaAdapter
+from evalvault.adapters.outbound.llm.ollama_adapter import OllamaAdapter, ThinkingTokenTrackingAsyncOpenAI
 from evalvault.adapters.outbound.llm import get_llm_adapter, OllamaAdapter
 
 
@@ -121,11 +121,96 @@ class TestOllamaAdapter:
         # 리셋 확인
         assert adapter.get_token_usage() == (0, 0, 0)
 
+    @patch("evalvault.adapters.outbound.llm.ollama_adapter.llm_factory")
+    @patch("evalvault.adapters.outbound.llm.ollama_adapter.RagasOpenAIEmbeddings")
+    def test_thinking_client_initialization(
+        self, mock_embeddings, mock_llm_factory, prod_settings
+    ):
+        """ThinkingTokenTrackingAsyncOpenAI가 올바르게 초기화되는지 테스트."""
+        adapter = OllamaAdapter(prod_settings)
+
+        # 클라이언트가 ThinkingTokenTrackingAsyncOpenAI 인스턴스인지 확인
+        assert isinstance(adapter._client, ThinkingTokenTrackingAsyncOpenAI)
+        assert adapter._client._think_level == "medium"
+
+    @pytest.mark.asyncio
+    @patch("evalvault.adapters.outbound.llm.ollama_adapter.llm_factory")
+    @patch("evalvault.adapters.outbound.llm.ollama_adapter.RagasOpenAIEmbeddings")
+    async def test_thinking_parameter_injection(
+        self, mock_embeddings, mock_llm_factory, prod_settings
+    ):
+        """Thinking 파라미터가 LLM 호출 시 주입되는지 테스트."""
+        # Create adapter with thinking enabled
+        adapter = OllamaAdapter(prod_settings)
+
+        # Mock the underlying completions.create method
+        mock_response = MagicMock()
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+        mock_response.usage.total_tokens = 30
+
+        # Create a spy on the completions.create method
+        original_create = adapter._client.chat.completions._completions.create
+        adapter._client.chat.completions._completions.create = AsyncMock(
+            return_value=mock_response
+        )
+
+        # Call the method
+        await adapter._client.chat.completions.create(
+            model="gpt-oss-safeguard:20b", messages=[{"role": "user", "content": "test"}]
+        )
+
+        # Verify that extra_body was added with thinking parameters
+        call_kwargs = adapter._client.chat.completions._completions.create.call_args[1]
+        assert "extra_body" in call_kwargs
+        assert "options" in call_kwargs["extra_body"]
+        assert call_kwargs["extra_body"]["options"]["think_level"] == "medium"
+
+    @pytest.mark.asyncio
+    @patch("evalvault.adapters.outbound.llm.ollama_adapter.llm_factory")
+    @patch("evalvault.adapters.outbound.llm.ollama_adapter.RagasOpenAIEmbeddings")
+    async def test_no_thinking_parameter_when_none(
+        self, mock_embeddings, mock_llm_factory, dev_settings
+    ):
+        """Thinking level이 None일 때 파라미터가 주입되지 않는지 테스트."""
+        # Create adapter without thinking (dev_settings has think_level=None)
+        adapter = OllamaAdapter(dev_settings)
+
+        # Mock the underlying completions.create method
+        mock_response = MagicMock()
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 20
+        mock_response.usage.total_tokens = 30
+
+        # Create a spy on the completions.create method
+        adapter._client.chat.completions._completions.create = AsyncMock(
+            return_value=mock_response
+        )
+
+        # Call the method without extra_body
+        await adapter._client.chat.completions.create(
+            model="gemma3:1b", messages=[{"role": "user", "content": "test"}]
+        )
+
+        # Verify that no extra_body was added when think_level is None
+        call_kwargs = adapter._client.chat.completions._completions.create.call_args[1]
+        # extra_body should not contain think_level
+        if "extra_body" in call_kwargs:
+            # If extra_body exists, it should be empty or not contain think_level
+            assert (
+                "options" not in call_kwargs["extra_body"]
+                or "think_level" not in call_kwargs["extra_body"].get("options", {})
+            )
+
 
 class TestGetLLMAdapter:
     """get_llm_adapter 팩토리 함수 테스트."""
 
-    def test_openai_provider(self):
+    @patch("evalvault.adapters.outbound.llm.openai_adapter.llm_factory")
+    @patch("evalvault.adapters.outbound.llm.openai_adapter.RagasOpenAIEmbeddings")
+    def test_openai_provider(self, mock_embeddings, mock_llm_factory):
         """OpenAI 프로바이더 테스트."""
         settings = Settings()
         settings.llm_provider = "openai"
