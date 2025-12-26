@@ -37,6 +37,8 @@ class MetricScore:
 class TestCaseResult:
     """개별 테스트 케이스 결과."""
 
+    __test__ = False
+
     test_case_id: str
     metrics: list[MetricScore]
     tokens_used: int = 0  # 총 토큰 사용량

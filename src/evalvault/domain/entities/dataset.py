@@ -8,6 +8,8 @@ from typing import Any
 class TestCase:
     """단일 평가 케이스 (Ragas SingleTurnSample과 매핑)."""
 
+    __test__ = False
+
     id: str
     question: str  # user_input
     answer: str  # response
@@ -30,6 +32,8 @@ class TestCase:
 @dataclass
 class Dataset:
     """평가용 데이터셋."""
+
+    __test__ = False
 
     name: str
     version: str

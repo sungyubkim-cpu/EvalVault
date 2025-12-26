@@ -4,14 +4,24 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from ragas import SingleTurnSample
-from ragas.metrics import (
-    AnswerRelevancy,
-    ContextPrecision,
-    ContextRecall,
-    Faithfulness,
-    FactualCorrectness,
-    SemanticSimilarity,
-)
+try:  # Ragas >=0.2.0
+    from ragas.metrics.collections import (
+        AnswerRelevancy,
+        ContextPrecision,
+        ContextRecall,
+        Faithfulness,
+        FactualCorrectness,
+        SemanticSimilarity,
+    )
+except ImportError:  # pragma: no cover - fallback for older Ragas versions
+    from ragas.metrics import (
+        AnswerRelevancy,
+        ContextPrecision,
+        ContextRecall,
+        Faithfulness,
+        FactualCorrectness,
+        SemanticSimilarity,
+    )
 
 from evalvault.domain.entities import (
     Dataset,
@@ -26,6 +36,8 @@ from evalvault.ports.outbound.llm_port import LLMPort
 @dataclass
 class TestCaseEvalResult:
     """Ragas 평가 결과 (토큰 사용량, 비용, 타이밍 포함)."""
+
+    __test__ = False
 
     scores: dict[str, float]
     tokens_used: int = 0
@@ -60,6 +72,24 @@ class RagasEvaluator:
 
     # Metrics that require embeddings
     EMBEDDING_REQUIRED_METRICS = {"answer_relevancy", "semantic_similarity"}
+
+    # Metrics that require reference (ground_truth)
+    REFERENCE_REQUIRED_METRICS = {
+        "context_precision",
+        "context_recall",
+        "factual_correctness",
+        "semantic_similarity",
+    }
+
+    # Metric-specific required arguments for Ragas 0.4+ ascore() API
+    METRIC_ARGS = {
+        "faithfulness": ["user_input", "response", "retrieved_contexts"],
+        "answer_relevancy": ["user_input", "response"],
+        "context_precision": ["user_input", "retrieved_contexts", "reference"],
+        "context_recall": ["user_input", "retrieved_contexts", "reference"],
+        "factual_correctness": ["response", "reference"],
+        "semantic_similarity": ["response", "reference"],
+    }
 
     async def evaluate(
         self,
@@ -240,10 +270,33 @@ class RagasEvaluator:
             test_case_started_at = datetime.now()
 
             for metric in ragas_metrics:
-                # Use single_turn_ascore with SingleTurnSample (new Ragas API)
-                result = await metric.single_turn_ascore(sample)
-                # Handle both MetricResult and float returns
-                if hasattr(result, "score"):
+                # Ragas >=0.4 uses ascore() with kwargs, older uses single_turn_ascore(sample)
+                if hasattr(metric, "ascore"):
+                    # New Ragas 0.4+ API: build kwargs based on metric requirements
+                    all_args = {
+                        "user_input": sample.user_input,
+                        "response": sample.response,
+                        "retrieved_contexts": sample.retrieved_contexts,
+                        "reference": sample.reference,
+                    }
+                    # Get required args for this metric
+                    required_args = self.METRIC_ARGS.get(
+                        metric.name,
+                        ["user_input", "response", "retrieved_contexts"],
+                    )
+                    kwargs = {k: v for k, v in all_args.items() if k in required_args and v is not None}
+                    result = await metric.ascore(**kwargs)
+                elif hasattr(metric, "single_turn_ascore"):
+                    # Legacy Ragas <0.4 API
+                    result = await metric.single_turn_ascore(sample)
+                else:  # pragma: no cover
+                    raise AttributeError(
+                        f"{metric.__class__.__name__} does not support scoring API."
+                    )
+                # Handle MetricResult (v0.4+), score attr, or raw float
+                if hasattr(result, "value"):
+                    scores[metric.name] = result.value
+                elif hasattr(result, "score"):
                     scores[metric.name] = result.score
                 else:
                     scores[metric.name] = float(result)
