@@ -17,11 +17,8 @@ E2E_RESULTS_DIR = Path(__file__).parent.parent.parent / "data" / "e2e_results"
 
 
 def get_test_model():
-    """Get the model name from environment."""
-    model = os.environ.get("OPENAI_MODEL")
-    if not model:
-        raise ValueError("OPENAI_MODEL not set. Please configure .env file.")
-    return model
+    """Get the model name from environment, with fallback for CI."""
+    return os.environ.get("OPENAI_MODEL", "gpt-5-nano")
 
 
 def _add_timestamp_to_path(path_str: str) -> str:
