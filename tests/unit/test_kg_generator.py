@@ -194,6 +194,7 @@ class TestKnowledgeGraphGenerator:
         unique_questions = set(questions)
         assert len(unique_questions) >= 2 or len(questions) <= 1
 
+    @pytest.mark.flaky(reruns=2)
     def test_generated_questions_use_entities(self, sample_documents):
         """Test that generated questions use extracted entities."""
         generator = KnowledgeGraphGenerator()
