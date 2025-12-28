@@ -1,7 +1,6 @@
 """Unit tests for InsuranceTermAccuracy metric."""
 
 import pytest
-
 from evalvault.domain.metrics.insurance import InsuranceTermAccuracy
 
 

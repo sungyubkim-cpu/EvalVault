@@ -1,7 +1,6 @@
 """Unit tests for knowledge graph entity and relation models."""
 
 import pytest
-
 from evalvault.domain.entities.kg import EntityModel, RelationModel
 
 

@@ -5,6 +5,38 @@ description = "RAG evaluation system using Ragas with Langfuse tracing"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
+authors = [
+    { name = "EvalVault Contributors" }
+]
+maintainers = [
+    { name = "EvalVault Contributors" }
+]
+keywords = [
+    "rag",
+    "evaluation",
+    "ragas",
+    "langfuse",
+    "llm",
+    "retrieval-augmented-generation",
+    "nlp",
+    "machine-learning",
+    "ai",
+    "testing",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
 dependencies = [
     "ragas",
     "langfuse",
@@ -22,6 +54,13 @@ dependencies = [
     "structlog",
     "langdetect", # For language detection (Phase 4)
 ]
+
+[project.urls]
+Homepage = "https://github.com/ntts9990/EvalVault"
+Documentation = "https://github.com/ntts9990/EvalVault#readme"
+Repository = "https://github.com/ntts9990/EvalVault.git"
+Issues = "https://github.com/ntts9990/EvalVault/issues"
+Changelog = "https://github.com/ntts9990/EvalVault/releases"
 
 [project.optional-dependencies]
 dev = [

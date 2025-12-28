@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 from pathlib import Path
 
 
@@ -15,9 +14,7 @@ def run_command(cmd: list[str], cwd: Path | None = None) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Verify Langfuse integration and KG workflows."
-    )
+    parser = argparse.ArgumentParser(description="Verify Langfuse integration and KG workflows.")
     parser.add_argument(
         "--skip-integration",
         action="store_true",

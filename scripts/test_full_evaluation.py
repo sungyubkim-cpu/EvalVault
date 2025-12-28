@@ -101,7 +101,9 @@ async def main():
     for result in run.results:
         print(f"    {result.test_case_id}:")
         for metric in result.metrics:
-            print(f"      {metric.name}: {metric.score:.4f} [{'PASS' if metric.passed else 'FAIL'}]")
+            print(
+                f"      {metric.name}: {metric.score:.4f} [{'PASS' if metric.passed else 'FAIL'}]"
+            )
 
     print("\n[3/4] Sending to Langfuse...")
     print("-" * 50)
@@ -145,17 +147,20 @@ async def main():
 
         print(f"  DB Path: {db_path}")
         print(f"  Run ID: {retrieved.run_id}")
-        print(f"  Status: SUCCESS - Data saved and verified")
+        print("  Status: SUCCESS - Data saved and verified")
 
         # List recent runs
         recent_runs = storage.list_runs(limit=5)
         print(f"\n  Recent Runs in DB ({len(recent_runs)} shown):")
         for r in recent_runs:
-            print(f"    - {r.run_id[:8]}... | {r.dataset_name} | {r.pass_rate*100:.0f}% | {r.started_at}")
+            print(
+                f"    - {r.run_id[:8]}... | {r.dataset_name} | {r.pass_rate*100:.0f}% | {r.started_at}"
+            )
 
     except Exception as e:
         print(f"  Status: ERROR - {e}")
         import traceback
+
         traceback.print_exc()
 
     print("\n" + "=" * 70)

@@ -5,8 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.error import HTTPError
 
 import pytest
-from typer.testing import CliRunner
-
 from evalvault.adapters.inbound.cli import app
 from evalvault.domain.entities import (
     Dataset,
@@ -15,6 +13,8 @@ from evalvault.domain.entities import (
     TestCase,
     TestCaseResult,
 )
+from typer.testing import CliRunner
+
 from tests.unit.conftest import get_test_model
 
 runner = CliRunner()

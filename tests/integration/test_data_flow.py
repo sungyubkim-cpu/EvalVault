@@ -6,7 +6,6 @@ These tests verify the complete data loading pipeline works correctly.
 from pathlib import Path
 
 import pytest
-
 from evalvault.adapters.outbound.dataset import (
     CSVDatasetLoader,
     ExcelDatasetLoader,

@@ -27,7 +27,7 @@ def main():
 
     # Get statistics
     stats = generator.get_statistics()
-    print(f"\nGraph Statistics:")
+    print("\nGraph Statistics:")
     print(f"  Total entities: {stats['num_entities']}")
     print(f"  Total relations: {stats['num_relations']}")
     print(f"  Entity types: {stats['entity_types']}")

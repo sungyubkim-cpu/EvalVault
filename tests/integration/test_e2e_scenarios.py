@@ -21,7 +21,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from evalvault.adapters.outbound.dataset import get_loader
 from evalvault.adapters.outbound.storage.sqlite_adapter import SQLiteStorageAdapter
 from evalvault.domain.entities import (
@@ -439,9 +438,8 @@ class TestCLIIntegrationE2E(TestE2EFixturePaths):
 
     def test_cli_run_with_json_dataset(self, korean_json):
         """CLI run 명령 JSON 데이터셋 테스트."""
-        from typer.testing import CliRunner
-
         from evalvault.adapters.inbound.cli import app
+        from typer.testing import CliRunner
 
         runner = CliRunner()
 
@@ -453,9 +451,8 @@ class TestCLIIntegrationE2E(TestE2EFixturePaths):
 
     def test_cli_metrics_command(self):
         """CLI metrics 명령 테스트."""
-        from typer.testing import CliRunner
-
         from evalvault.adapters.inbound.cli import app
+        from typer.testing import CliRunner
 
         runner = CliRunner()
         result = runner.invoke(app, ["metrics"])
@@ -465,9 +462,8 @@ class TestCLIIntegrationE2E(TestE2EFixturePaths):
 
     def test_cli_config_command(self):
         """CLI config 명령 테스트."""
-        from typer.testing import CliRunner
-
         from evalvault.adapters.inbound.cli import app
+        from typer.testing import CliRunner
 
         runner = CliRunner()
         result = runner.invoke(app, ["config"])

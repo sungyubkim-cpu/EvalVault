@@ -379,7 +379,7 @@ class Dataset:
     version: str
     test_cases: list[TestCase]
     thresholds: dict[str, float] = field(default_factory=dict)
-    
+
     def get_threshold(self, metric_name: str, default: float = 0.7) -> float:
         """비즈니스 규칙: 임계값 조회"""
         return self.thresholds.get(metric_name, default)
@@ -402,18 +402,18 @@ class EvaluationRun:
     results: list[TestCaseResult]
     metrics_evaluated: list[str]
     thresholds: dict[str, float]
-    
+
     @property
     def pass_rate(self) -> float:
         """비즈니스 규칙: 통과율 계산"""
         if not self.results:
             return 0.0
         return self.passed_test_cases / self.total_test_cases
-    
+
     def get_avg_score(self, metric_name: str) -> float | None:
         """비즈니스 규칙: 메트릭 평균 점수 계산"""
-        scores = [r.get_metric(metric_name).score 
-                  for r in self.results 
+        scores = [r.get_metric(metric_name).score
+                  for r in self.results
                   if r.get_metric(metric_name)]
         return sum(scores) / len(scores) if scores else None
 ```
@@ -432,7 +432,7 @@ class EvaluationRun:
 ```python
 class RagasEvaluator:
     """Ragas 기반 RAG 평가 서비스."""
-    
+
     async def evaluate(
         self,
         dataset: Dataset,
@@ -445,17 +445,17 @@ class RagasEvaluator:
         resolved_thresholds = self._resolve_thresholds(
             dataset, metrics, thresholds
         )
-        
+
         # 2. 평가 실행 (Ragas 메트릭)
         eval_results = await self._evaluate_with_ragas(
             dataset, metrics, llm
         )
-        
+
         # 3. 결과 집계 (비즈니스 로직)
         run = self._aggregate_results(
             dataset, metrics, eval_results, resolved_thresholds
         )
-        
+
         return run
 ```
 
@@ -474,18 +474,18 @@ class RagasEvaluator:
 ```python
 class ExperimentManager:
     """실험 관리 서비스."""
-    
+
     def __init__(self, storage: StoragePort):  # 포트에 의존
         self._storage = storage
         self._experiments: dict[str, Experiment] = {}
-    
+
     def compare_groups(self, experiment_id: str) -> list[MetricComparison]:
         """그룹 간 메트릭 비교 - 비즈니스 로직"""
         experiment = self.get_experiment(experiment_id)
-        
+
         # 각 그룹의 run 데이터 수집
         group_runs = self._collect_group_runs(experiment)
-        
+
         # 메트릭별 비교 (비즈니스 규칙)
         comparisons = []
         for metric in experiment.metrics_to_compare:
@@ -494,14 +494,14 @@ class ExperimentManager:
             )
             best_group = max(group_scores, key=group_scores.get)
             improvement = self._calculate_improvement(group_scores)
-            
+
             comparisons.append(MetricComparison(
                 metric_name=metric,
                 group_scores=group_scores,
                 best_group=best_group,
                 improvement=improvement,
             ))
-        
+
         return comparisons
 ```
 
@@ -522,13 +522,13 @@ class ExperimentManager:
 ```python
 class InsuranceTermAccuracy:
     """보험 용어 정확도 메트릭."""
-    
+
     def score(self, answer: str, contexts: list[str]) -> float:
         """비즈니스 규칙: 보험 용어가 컨텍스트에 기반하는지 검증"""
         # 도메인 지식 활용
         terms = self._extract_insurance_terms(answer)
         grounded_terms = self._check_grounding(terms, contexts)
-        
+
         return len(grounded_terms) / len(terms) if terms else 0.0
 ```
 
@@ -549,7 +549,7 @@ class InsuranceTermAccuracy:
 ```python
 class EvaluatorPort(Protocol):
     """평가 실행을 위한 포트 인터페이스."""
-    
+
     def evaluate(
         self,
         dataset: Dataset,
@@ -574,12 +574,12 @@ class EvaluatorPort(Protocol):
 ```python
 class LLMPort(ABC):
     """LLM adapter interface for Ragas metrics evaluation."""
-    
+
     @abstractmethod
     def get_model_name(self) -> str:
         """모델 이름 반환"""
         pass
-    
+
     @abstractmethod
     def as_ragas_llm(self):
         """Ragas 호환 LLM 인스턴스 반환"""
@@ -596,11 +596,11 @@ class LLMPort(ABC):
 ```python
 class DatasetPort(Protocol):
     """데이터셋 로드를 위한 포트 인터페이스."""
-    
+
     def load(self, file_path: str | Path) -> Dataset:
         """파일에서 데이터셋을 로드합니다."""
         ...
-    
+
     def supports(self, file_path: str | Path) -> bool:
         """해당 파일 형식을 지원하는지 확인합니다."""
         ...
@@ -611,15 +611,15 @@ class DatasetPort(Protocol):
 ```python
 class StoragePort(Protocol):
     """평가 결과 저장을 위한 포트 인터페이스."""
-    
+
     def save_run(self, run: EvaluationRun) -> str:
         """평가 실행 결과를 저장합니다."""
         ...
-    
+
     def get_run(self, run_id: str) -> EvaluationRun:
         """저장된 평가 실행 결과를 조회합니다."""
         ...
-    
+
     def list_runs(
         self,
         limit: int = 100,
@@ -635,11 +635,11 @@ class StoragePort(Protocol):
 ```python
 class TrackerPort(Protocol):
     """평가 실행 추적을 위한 포트 인터페이스."""
-    
+
     def start_trace(self, name: str, metadata: dict[str, Any] | None = None) -> str:
         """새로운 trace를 시작합니다."""
         ...
-    
+
     def log_evaluation_run(self, run: EvaluationRun) -> str:
         """평가 실행을 trace로 기록합니다."""
         ...
@@ -664,14 +664,14 @@ def run(
     """Run RAG evaluation on a dataset."""
     # 1. 입력 검증 및 파싱
     metric_list = [m.strip() for m in metrics.split(",")]
-    
+
     # 2. 설정 로드
     settings = Settings()
-    
+
     # 3. 어댑터 생성 (Factory 패턴)
     loader = get_loader(dataset)  # DatasetPort 구현
     llm = get_llm_adapter(settings)  # LLMPort 구현
-    
+
     # 4. 도메인 서비스 호출
     evaluator = RagasEvaluator()
     result = asyncio.run(
@@ -681,7 +681,7 @@ def run(
             llm=llm,  # 포트 인터페이스 전달
         )
     )
-    
+
     # 5. 결과 포맷팅 및 출력
     _display_results(result)
 ```
@@ -703,7 +703,7 @@ def run(
 ```python
 class CSVDatasetLoader(BaseDatasetLoader):
     """CSV 파일 로더."""
-    
+
     def load(self, file_path: str | Path) -> Dataset:
         """CSV 파일을 Dataset으로 변환"""
         df = pd.read_csv(file_path)
@@ -722,7 +722,7 @@ class CSVDatasetLoader(BaseDatasetLoader):
             version="1.0.0",
             test_cases=test_cases,
         )
-    
+
     def supports(self, file_path: str | Path) -> bool:
         """CSV 파일 지원 여부"""
         return Path(file_path).suffix.lower() == ".csv"
@@ -738,7 +738,7 @@ class CSVDatasetLoader(BaseDatasetLoader):
 ```python
 class OpenAIAdapter(LLMPort):
     """OpenAI LLM adapter."""
-    
+
     def __init__(self, settings: Settings):
         self._settings = settings
         self._ragas_llm = llm_factory(
@@ -746,10 +746,10 @@ class OpenAIAdapter(LLMPort):
             provider="openai",
             api_key=settings.openai_api_key,
         )
-    
+
     def get_model_name(self) -> str:
         return self._settings.openai_model
-    
+
     def as_ragas_llm(self):
         """Ragas 호환 LLM 반환"""
         return self._ragas_llm
@@ -765,13 +765,13 @@ class OpenAIAdapter(LLMPort):
 ```python
 class SQLiteStorageAdapter(StoragePort):
     """SQLite 저장소 어댑터."""
-    
+
     def save_run(self, run: EvaluationRun) -> str:
         """EvaluationRun을 SQLite에 저장"""
         # EvaluationRun → DB 스키마 변환
         # SQL 쿼리 실행
         ...
-    
+
     def get_run(self, run_id: str) -> EvaluationRun:
         """DB에서 EvaluationRun 조회"""
         # DB 쿼리 실행
@@ -788,7 +788,7 @@ class SQLiteStorageAdapter(StoragePort):
 ```python
 class LangfuseAdapter(TrackerPort):
     """Langfuse 추적 어댑터."""
-    
+
     def log_evaluation_run(self, run: EvaluationRun) -> str:
         """EvaluationRun을 Langfuse trace로 기록"""
         trace = self._client.trace(
@@ -798,7 +798,7 @@ class LangfuseAdapter(TrackerPort):
                 "model": run.model_name,
             }
         )
-        
+
         # 각 테스트 케이스를 span으로 기록
         for result in run.results:
             span = trace.span(
@@ -806,14 +806,14 @@ class LangfuseAdapter(TrackerPort):
                 input={"question": result.question},
                 output={"answer": result.answer},
             )
-            
+
             # 메트릭 점수 기록
             for metric in result.metrics:
                 span.score(
                     name=metric.name,
                     value=metric.score,
                 )
-        
+
         return trace.id
 ```
 
@@ -1288,7 +1288,7 @@ result = await evaluator.evaluate(dataset=ds, metrics=metrics, llm=llm)
 class NewLLMAdapter(LLMPort):
     def get_model_name(self) -> str:
         return "new-model"
-    
+
     def as_ragas_llm(self):
         return llm_factory(model="new-model", provider="new-provider")
 
@@ -1334,7 +1334,7 @@ class RagasEvaluator:
 class XMLDatasetLoader(BaseDatasetLoader):
     def supports(self, file_path: str | Path) -> bool:
         return Path(file_path).suffix.lower() == ".xml"
-    
+
     def load(self, file_path: str | Path) -> Dataset:
         # XML 파싱 및 Dataset 변환
         ...
@@ -1354,7 +1354,7 @@ _LOADERS.append(XMLDatasetLoader)
 class MockLLMAdapter(LLMPort):
     def get_model_name(self) -> str:
         return "mock-model"
-    
+
     def as_ragas_llm(self):
         return MockRagasLLM()
 

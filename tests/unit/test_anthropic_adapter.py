@@ -4,7 +4,6 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from evalvault.adapters.outbound.llm.anthropic_adapter import AnthropicAdapter, TokenUsage
 from evalvault.config.settings import Settings
 

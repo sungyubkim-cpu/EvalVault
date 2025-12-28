@@ -7,7 +7,6 @@ Usage: python run_with_timeout.py <timeout_seconds> <command> [args...]
 
 import subprocess
 import sys
-import signal
 from typing import NoReturn
 
 

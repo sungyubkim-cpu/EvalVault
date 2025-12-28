@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from evalvault.config.model_config import (
     EmbeddingConfig,
     LLMConfig,
